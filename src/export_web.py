@@ -22,6 +22,29 @@ WEB = C.ROOT / "web_data"
 HISTORY_DAYS = 180
 
 
+def _shrink(src, dst) -> None:
+    """Copy a parquet file with memory-efficient dtypes.
+
+    Repeated strings (ids, node labels) become categories and floats become
+    float32. On the 30,490-series bundle this cuts in-RAM size ~10x, which
+    matters on a 512 MB free-tier container.
+    """
+    df = pd.read_parquet(src)
+    before = df.memory_usage(deep=True).sum() / 1e6
+    for c in df.columns:
+        if df[c].dtype == object:
+            # only worth it when values repeat
+            if df[c].nunique() < len(df) * 0.5:
+                df[c] = df[c].astype("category")
+        elif df[c].dtype == "float64":
+            df[c] = df[c].astype("float32")
+        elif df[c].dtype == "int64":
+            df[c] = pd.to_numeric(df[c], downcast="integer")
+    after = df.memory_usage(deep=True).sum() / 1e6
+    df.to_parquet(dst, index=False, compression="zstd")
+    print(f"    {src.name:32s} {before:7.1f} -> {after:6.1f} MB in RAM")
+
+
 def main() -> None:
     WEB.mkdir(exist_ok=True)
 
@@ -67,8 +90,11 @@ def main() -> None:
     # ---------------------------------------------------------------- outputs
     n = 0
     for p in C.OUT.iterdir():
-        if p.suffix in {".parquet", ".json", ".csv"} and "model" not in p.name:
+        if "model" not in p.name and p.suffix in {".json", ".csv"}:
             shutil.copy2(p, WEB / p.name)
+            n += 1
+        elif p.suffix == ".parquet":
+            _shrink(p, WEB / p.name)
             n += 1
     print(f"  copied {n} output files")
 
