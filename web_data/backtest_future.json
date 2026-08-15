@@ -1,0 +1,26 @@
+{
+  "task": "28-day gap + 28-day horizon",
+  "n_origins": 3,
+  "mean_wrmsse": 0.8310162223001535,
+  "std_wrmsse": 0.04324850329220809,
+  "origins": [
+    {
+      "origin_day": 1829,
+      "first_pred_day": 1858,
+      "wrmsse": 0.8483009275031153,
+      "best_iteration": 131
+    },
+    {
+      "origin_day": 1857,
+      "first_pred_day": 1886,
+      "wrmsse": 0.7817984798477894,
+      "best_iteration": 100
+    },
+    {
+      "origin_day": 1885,
+      "first_pred_day": 1914,
+      "wrmsse": 0.862949259549556,
+      "best_iteration": 93
+    }
+  ]
+}

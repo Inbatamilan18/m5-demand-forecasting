@@ -1,0 +1,8 @@
+services:
+  dashboard:
+    build: .
+    image: m5-dashboard
+    container_name: m5-dashboard
+    ports:
+      - "8501:8501"
+    restart: unless-stopped

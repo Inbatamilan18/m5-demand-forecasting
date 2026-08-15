@@ -1,0 +1,8 @@
+{
+  "mode": "future",
+  "best_iteration": 119,
+  "valid_rmse": 2.27747518360316,
+  "n_series": 30490,
+  "first_date": "2016-06-20",
+  "last_date": "2016-07-17"
+}
