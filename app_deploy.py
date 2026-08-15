@@ -37,16 +37,25 @@ def load(mode: str):
     fc_p = WEB / f"forecast_{mode}.parquet"
     if not fc_p.exists():
         return None
+
+    # Keep startup memory low: hierarchy data is loaded only when the
+    # hierarchy tab needs it instead of loading it on every app run.
     fc = pd.read_parquet(fc_p)
-    hier = pd.read_parquet(WEB / f"hierarchy_{mode}.parquet") \
-        if (WEB / f"hierarchy_{mode}.parquet").exists() else None
     mets = json.loads((WEB / f"metrics_{mode}.json").read_text()) \
         if (WEB / f"metrics_{mode}.json").exists() else None
     meta = json.loads((WEB / f"train_meta_{mode}.json").read_text()) \
         if (WEB / f"train_meta_{mode}.json").exists() else {}
     imp_p = WEB / f"feature_importance_{mode}.csv"
     imp = pd.read_csv(imp_p) if imp_p.exists() else None
-    return fc, hier, mets, meta, imp
+    return fc, mets, meta, imp
+
+
+@st.cache_data(show_spinner=False)
+def load_hierarchy(mode: str):
+    f = WEB / f"hierarchy_{mode}.parquet"
+    if not f.exists():
+        return None
+    return pd.read_parquet(f)
 
 
 @st.cache_data(show_spinner=False)
@@ -64,26 +73,67 @@ def load_calendar():
 
 @st.cache_data(show_spinner=False)
 def load_prices_for(items: tuple[str, ...], stores: tuple[str, ...]):
-    """Latest sell_price per item x store, from the bundle."""
+    """Load only requested price rows and columns."""
     f = WEB / "prices.parquet"
-    if not f.exists():
+    if not f.exists() or not items or not stores:
         return None
-    pr = pd.read_parquet(f)
-    return pr[pr["item_id"].isin(items) & pr["store_id"].isin(stores)]
+
+    try:
+        return pd.read_parquet(
+            f,
+            columns=["item_id", "store_id", "sell_price"],
+            filters=[
+                ("item_id", "in", list(items)),
+                ("store_id", "in", list(stores)),
+            ],
+        )
+    except Exception:
+        # Fallback for parquet files/engines without row filtering.
+        pr = pd.read_parquet(
+            f, columns=["item_id", "store_id", "sell_price"]
+        )
+        return pr[
+            pr["item_id"].isin(items) & pr["store_id"].isin(stores)
+        ]
 
 
 @st.cache_data(show_spinner=False)
 def load_history(ids: tuple[str, ...], n_days: int = 120):
+    """Load only the selected series and recent history."""
     f = WEB / "history.parquet"
-    if not f.exists():
+    if not f.exists() or not ids:
         return None
-    df = pd.read_parquet(f)
-    df = df[df["id"].isin(ids)].set_index("id")
-    cal = pd.read_parquet(WEB / "calendar.parquet")
+
+    # Inspect the Parquet schema without loading the dataset.
+    try:
+        import pyarrow.parquet as pq
+        columns = pq.ParquetFile(f).schema.names
+    except Exception:
+        columns = list(pd.read_parquet(f, columns=["id"]).columns)
+
+    day = [c for c in columns if c.startswith("d_")][-n_days:]
+    read_cols = ["id"] + day
+
+    try:
+        df = pd.read_parquet(
+            f,
+            columns=read_cols,
+            filters=[("id", "in", list(ids))],
+        )
+    except Exception:
+        # Still restrict the columns in the fallback path.
+        df = pd.read_parquet(f, columns=read_cols)
+        df = df[df["id"].isin(ids)]
+
+    if df.empty:
+        return None
+
+    df = df.set_index("id")
+    cal = pd.read_parquet(WEB / "calendar.parquet",
+                          columns=["d", "date"])
     cal["date"] = pd.to_datetime(cal["date"])
     cal = cal.set_index("d")["date"]
-    day = [c for c in df.columns if c.startswith("d_")]
-    df = df[day[-n_days:]]
+
     out = df.T
     out.index = cal.reindex(out.index).values
     return out
@@ -103,7 +153,7 @@ if data is None:
                f"Run `python -m src.export_web` locally and redeploy.")
     st.stop()
 
-fc, hier, mets, meta, imp = data
+fc, mets, meta, imp = data
 
 st.sidebar.markdown("### Filters")
 states = st.sidebar.multiselect("State", sorted(fc["state_id"].unique()))
@@ -168,6 +218,7 @@ with tabs[0]:
 
 # ------------------------------------------------------------ hierarchy tab
 with tabs[1]:
+    hier = load_hierarchy(mode)
     if hier is None:
         st.info("Run `python -m src.evaluate` to build hierarchy aggregates.")
     else:
