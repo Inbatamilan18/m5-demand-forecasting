@@ -294,8 +294,12 @@ with tabs[3]:
     pr = load_prices_for(tuple(top_items["item_id"].unique()[:40]),
                          tuple(top_items["store_id"].unique()))
     if pr is not None and len(pr):
-        last = (pr.sort_values("date").groupby(["item_id", "store_id"])
-                  .tail(1)[["item_id", "store_id", "sell_price"]])
+        # prices.parquet is intentionally exported as the latest price
+        # per item x store, so it does not contain a "date" column.
+        # Do not sort by date here.
+        last = pr[["item_id", "store_id", "sell_price"]].drop_duplicates(
+            ["item_id", "store_id"]
+        )
         m = top_items.merge(last, on=["item_id", "store_id"], how="inner")
         if len(m) > 5:
             st.plotly_chart(
