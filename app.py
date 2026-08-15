@@ -64,17 +64,15 @@ def load_prices_for(items: tuple[str, ...], stores: tuple[str, ...]):
     pr = pd.read_csv(f)
     pr = pr[pr["item_id"].isin(items) & pr["store_id"].isin(stores)].copy()
 
-    # The price file may already contain a date column. Drop it before
-    # merging the canonical M5 calendar date so we always end up with
-    # exactly one column named "date".
+    # Use the M5 calendar to map each selling week to its first calendar date.
+    # Ignore any date column that may already exist in the price file so the
+    # merge produces exactly one canonical "date" column.
     pr = pr.drop(columns=["date"], errors="ignore")
 
     cal = pd.read_csv(C.RAW / "calendar.csv", parse_dates=["date"])
     wk = cal.groupby("wm_yr_wk", as_index=False)["date"].min()
-
     pr = pr.merge(wk, on="wm_yr_wk", how="left")
 
-    # Make the failure explicit instead of allowing a later KeyError.
     if "date" not in pr.columns:
         return None
 
@@ -307,8 +305,9 @@ with tabs[3]:
                    .sum().sort_values(ascending=False).head(200).reset_index())
     pr = load_prices_for(tuple(top_items["item_id"].unique()[:40]),
                          tuple(top_items["store_id"].unique()))
-    if pr is not None and len(pr):
-        last = (pr.sort_values("date").groupby(["item_id", "store_id"])
+    if pr is not None and len(pr) and "date" in pr.columns:
+        last = (pr.sort_values("date")
+                  .groupby(["item_id", "store_id"])
                   .tail(1)[["item_id", "store_id", "sell_price"]])
         m = top_items.merge(last, on=["item_id", "store_id"], how="inner")
         if len(m) > 5:
