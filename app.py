@@ -62,10 +62,24 @@ def load_prices_for(items: tuple[str, ...], stores: tuple[str, ...]):
     if not f.exists():
         return None
     pr = pd.read_csv(f)
-    pr = pr[pr["item_id"].isin(items) & pr["store_id"].isin(stores)]
+    pr = pr[pr["item_id"].isin(items) & pr["store_id"].isin(stores)].copy()
+
+    # The price file may already contain a date column. Drop it before
+    # merging the canonical M5 calendar date so we always end up with
+    # exactly one column named "date".
+    pr = pr.drop(columns=["date"], errors="ignore")
+
     cal = pd.read_csv(C.RAW / "calendar.csv", parse_dates=["date"])
-    wk = cal.groupby("wm_yr_wk")["date"].min().rename("date")
-    return pr.merge(wk, on="wm_yr_wk", how="left")
+    wk = cal.groupby("wm_yr_wk", as_index=False)["date"].min()
+
+    pr = pr.merge(wk, on="wm_yr_wk", how="left")
+
+    # Make the failure explicit instead of allowing a later KeyError.
+    if "date" not in pr.columns:
+        return None
+
+    pr["date"] = pd.to_datetime(pr["date"], errors="coerce")
+    return pr
 
 
 @st.cache_data(show_spinner=False)
