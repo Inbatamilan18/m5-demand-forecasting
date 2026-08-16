@@ -5,3 +5,4 @@ data/raw/*.csv
 data/processed/
 outputs/*.txt
 *.zip
+users.db
