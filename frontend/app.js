@@ -6,7 +6,7 @@
 // Use the same server for both frontend and FastAPI.
 // Local: http://127.0.0.1:8000
 // Render: https://your-render-url.onrender.com
-const API_URL = window.location.origin;
+const API_URL = "https://m5-demand-forecasting-api-2.onrender.com";
 
 let token = localStorage.getItem("m5_token");
 
