@@ -1,6 +1,15 @@
-const API_URL = "http://127.0.0.1:8000";
+// ============================================================
+// M5 RETAIL DEMAND FORECASTING
+// FRONTEND JAVASCRIPT
+// ============================================================
+
+// Use the same server for both frontend and FastAPI.
+// Local: http://127.0.0.1:8000
+// Render: https://your-render-url.onrender.com
+const API_URL = window.location.origin;
 
 let token = localStorage.getItem("m5_token");
+
 let forecastData = [];
 
 
@@ -21,22 +30,28 @@ function authHeaders() {
 
 async function login() {
 
-    const username =
-        document.getElementById("username").value.trim();
+    const usernameElement =
+        document.getElementById("username");
 
-    const password =
-        document.getElementById("password").value;
+    const passwordElement =
+        document.getElementById("password");
 
     const message =
         document.getElementById("login-message");
 
+    const username =
+        usernameElement.value.trim();
+
+    const password =
+        passwordElement.value;
+
+    message.textContent = "";
 
     if (!username || !password) {
         message.textContent =
             "Please enter username and password.";
         return;
     }
-
 
     try {
 
@@ -56,9 +71,7 @@ async function login() {
             }
         );
 
-
         const data = await response.json();
-
 
         if (!response.ok) {
 
@@ -69,7 +82,6 @@ async function login() {
             return;
         }
 
-
         token = data.token;
 
         localStorage.setItem(
@@ -77,18 +89,19 @@ async function login() {
             token
         );
 
-
-        message.textContent = "";
-
-        showDashboard(data.username);
-
+        showDashboard(
+            data.username
+        );
 
     } catch (error) {
 
-        console.error("Login error:", error);
+        console.error(
+            "Login error:",
+            error
+        );
 
         message.textContent =
-            "Cannot connect to FastAPI server.";
+            "Cannot connect to the server.";
     }
 }
 
@@ -99,31 +112,43 @@ async function login() {
 
 function showDashboard(username) {
 
-    document.getElementById(
-        "login-section"
-    ).style.display = "none";
+    const loginSection =
+        document.getElementById(
+            "login-section"
+        );
 
+    const dashboardSection =
+        document.getElementById(
+            "dashboard-section"
+        );
 
-    document.getElementById(
-        "dashboard-section"
-    ).style.display = "flex";
+    if (loginSection) {
+        loginSection.style.display = "none";
+    }
 
+    if (dashboardSection) {
+        dashboardSection.style.display = "flex";
+    }
 
     const loggedUser =
-        document.getElementById("logged-user");
+        document.getElementById(
+            "logged-user"
+        );
 
     if (loggedUser) {
-        loggedUser.textContent = username;
+        loggedUser.textContent =
+            username;
     }
-
 
     const sidebarUsername =
-        document.getElementById("sidebar-username");
+        document.getElementById(
+            "sidebar-username"
+        );
 
     if (sidebarUsername) {
-        sidebarUsername.textContent = username;
+        sidebarUsername.textContent =
+            username;
     }
-
 
     loadDashboard();
 }
@@ -135,21 +160,33 @@ function showDashboard(username) {
 
 function logout() {
 
-    localStorage.removeItem("m5_token");
+    localStorage.removeItem(
+        "m5_token"
+    );
 
     token = null;
 
     forecastData = [];
 
+    const dashboardSection =
+        document.getElementById(
+            "dashboard-section"
+        );
 
-    document.getElementById(
-        "dashboard-section"
-    ).style.display = "none";
+    const loginSection =
+        document.getElementById(
+            "login-section"
+        );
 
+    if (dashboardSection) {
+        dashboardSection.style.display =
+            "none";
+    }
 
-    document.getElementById(
-        "login-section"
-    ).style.display = "flex";
+    if (loginSection) {
+        loginSection.style.display =
+            "flex";
+    }
 }
 
 
@@ -177,85 +214,110 @@ async function loadDashboard() {
 
 async function loadForecast() {
 
-    if (!token) return;
-
+    if (!token) {
+        return;
+    }
 
     const modeElement =
-        document.getElementById("mode-filter");
-
+        document.getElementById(
+            "mode-filter"
+        );
 
     const mode =
         modeElement
             ? modeElement.value
             : "future";
 
-
     try {
 
-        const response = await fetch(
-            `${API_URL}/forecast?mode=${mode}`,
-            {
-                headers: authHeaders()
-            }
-        );
+        const response =
+            await fetch(
+                `${API_URL}/forecast?mode=${encodeURIComponent(mode)}`,
+                {
+                    headers:
+                        authHeaders()
+                }
+            );
 
-
-        const data = await response.json();
-
+        const data =
+            await response.json();
 
         if (!response.ok) {
 
             console.error(
-                "Forecast error:",
+                "Forecast API error:",
                 data
             );
 
             return;
         }
 
-
         forecastData =
             data.data || [];
 
-
-        document.getElementById(
-            "total-units"
-        ).textContent =
-            formatNumber(
-                data.total_units
-            );
-
-
-        document.getElementById(
-            "average-units"
-        ).textContent =
-            formatNumber(
-                data.avg_units_per_day
-            );
-
-
-        document.getElementById(
-            "series-count"
-        ).textContent =
-            formatNumber(
-                data.series
-            );
-
+        updateGlobalForecastCards(
+            data
+        );
 
         populateFilters(
             forecastData
         );
 
-
         applyFilters();
-
 
     } catch (error) {
 
         console.error(
-            "Forecast request failed:",
+            "Forecast error:",
             error
         );
+    }
+}
+
+
+// ============================================================
+// GLOBAL FORECAST CARDS
+// ============================================================
+
+function updateGlobalForecastCards(data) {
+
+    const total =
+        document.getElementById(
+            "total-units"
+        );
+
+    const average =
+        document.getElementById(
+            "average-units"
+        );
+
+    const series =
+        document.getElementById(
+            "series-count"
+        );
+
+    if (total) {
+
+        total.textContent =
+            formatNumber(
+                data.total_units
+            );
+    }
+
+    if (average) {
+
+        average.textContent =
+            formatNumber(
+                data.avg_units_per_day
+            );
+    }
+
+    if (series) {
+
+        series.textContent =
+            formatNumber(
+                data.series
+            );
     }
 }
 
@@ -266,56 +328,56 @@ async function loadForecast() {
 
 async function loadSummary() {
 
-    if (!token) return;
-
+    if (!token) {
+        return;
+    }
 
     const modeElement =
-        document.getElementById("mode-filter");
-
+        document.getElementById(
+            "mode-filter"
+        );
 
     const mode =
         modeElement
             ? modeElement.value
             : "future";
 
-
     try {
 
-        const response = await fetch(
-            `${API_URL}/forecast/summary?mode=${mode}`,
-            {
-                headers: authHeaders()
-            }
-        );
-
+        const response =
+            await fetch(
+                `${API_URL}/forecast/summary?mode=${encodeURIComponent(mode)}`,
+                {
+                    headers:
+                        authHeaders()
+                }
+            );
 
         const data =
             await response.json();
 
-
         if (!response.ok) {
 
             console.error(
-                "Summary error:",
+                "Summary API error:",
                 data
             );
 
             return;
         }
 
+        const peak =
+            document.getElementById(
+                "peak-day"
+            );
 
-        const peakElement =
-            document.getElementById("peak-day");
+        if (peak) {
 
-
-        if (peakElement) {
-
-            peakElement.textContent =
+            peak.textContent =
                 formatNumber(
                     data.peak_day_units
                 );
         }
-
 
     } catch (error) {
 
@@ -333,71 +395,64 @@ async function loadSummary() {
 
 async function loadMetrics() {
 
-    if (!token) return;
-
-
-    const modeElement =
-        document.getElementById("mode-filter");
-
-
-    const mode =
-        modeElement
-            ? modeElement.value
-            : "validation";
-
+    if (!token) {
+        return;
+    }
 
     try {
 
-        const response = await fetch(
-            `${API_URL}/metrics?mode=validation`,
-            {
-                headers: authHeaders()
-            }
-        );
-
+        const response =
+            await fetch(
+                `${API_URL}/metrics?mode=validation`,
+                {
+                    headers:
+                        authHeaders()
+                }
+            );
 
         const data =
             await response.json();
 
-
         if (!response.ok) {
 
             console.error(
-                "Metrics error:",
+                "Metrics API error:",
                 data
             );
 
             return;
         }
 
-
         const metrics =
             data.metrics || {};
 
-
         setText(
             "wrmsse",
-            formatNumber(metrics.wrmsse)
+            formatNumber(
+                metrics.wrmsse
+            )
         );
-
 
         setText(
             "rmse",
-            formatNumber(metrics.rmse)
+            formatNumber(
+                metrics.rmse
+            )
         );
-
 
         setText(
             "mae",
-            formatNumber(metrics.mae)
+            formatNumber(
+                metrics.mae
+            )
         );
-
 
         setText(
             "mape",
-            formatNumber(metrics.mape)
+            formatNumber(
+                metrics.mape
+            )
         );
-
 
     } catch (error) {
 
@@ -415,8 +470,9 @@ async function loadMetrics() {
 
 async function loadHierarchy() {
 
-    if (!token) return;
-
+    if (!token) {
+        return;
+    }
 
     try {
 
@@ -424,30 +480,29 @@ async function loadHierarchy() {
             await fetch(
                 `${API_URL}/hierarchy`,
                 {
-                    headers: authHeaders()
+                    headers:
+                        authHeaders()
                 }
             );
-
 
         const data =
             await response.json();
 
-
         if (!response.ok) {
 
             console.error(
-                "Hierarchy error:",
+                "Hierarchy API error:",
                 data
             );
 
             return;
         }
 
-
-        createHierarchyCards(data);
+        createHierarchyCards(
+            data
+        );
 
         await loadHierarchySummary();
-
 
     } catch (error) {
 
@@ -470,44 +525,40 @@ function createHierarchyCards(data) {
             "hierarchy-cards"
         );
 
-
-    if (!container) return;
-
+    if (!container) {
+        return;
+    }
 
     const cards = [
 
         {
             icon: "🇺🇸",
             title: "States",
-            values: data.states || []
+            values:
+                data.states || []
         },
 
         {
             icon: "🏪",
             title: "Stores",
-            values: data.stores || []
+            values:
+                data.stores || []
         },
 
         {
             icon: "🛒",
             title: "Categories",
-            values: data.categories || []
+            values:
+                data.categories || []
         },
 
         {
             icon: "🏷️",
             title: "Departments",
-            values: data.departments || []
-        },
-
-        {
-            icon: "📦",
-            title: "Items",
-            values: data.items || []
+            values:
+                data.departments || []
         }
-
     ];
-
 
     container.innerHTML =
         cards.map(
@@ -520,7 +571,9 @@ function createHierarchyCards(data) {
                     </div>
 
                     <h3>
-                        ${card.title}
+                        ${escapeHTML(
+                            card.title
+                        )}
                     </h3>
 
                     <p>
@@ -528,6 +581,12 @@ function createHierarchyCards(data) {
                             card.values.length
                             ? card.values
                                 .slice(0, 12)
+                                .map(
+                                    value =>
+                                        escapeHTML(
+                                            String(value)
+                                        )
+                                )
                                 .join(" · ")
                             : "No data available"
                         }
@@ -537,8 +596,8 @@ function createHierarchyCards(data) {
                         ${card.values.length}
                         ${
                             card.values.length === 1
-                            ? " value"
-                            : " values"
+                            ? "value"
+                            : "values"
                         }
                     </strong>
 
@@ -555,8 +614,9 @@ function createHierarchyCards(data) {
 
 async function loadHierarchySummary() {
 
-    if (!token) return;
-
+    if (!token) {
+        return;
+    }
 
     try {
 
@@ -564,26 +624,32 @@ async function loadHierarchySummary() {
             await fetch(
                 `${API_URL}/hierarchy/summary`,
                 {
-                    headers: authHeaders()
+                    headers:
+                        authHeaders()
                 }
             );
-
 
         const data =
             await response.json();
 
+        if (!response.ok) {
 
-        if (!response.ok) return;
+            console.error(
+                "Hierarchy summary error:",
+                data
+            );
 
+            return;
+        }
 
         const container =
             document.getElementById(
                 "hierarchy-table"
             );
 
-
-        if (!container) return;
-
+        if (!container) {
+            return;
+        }
 
         let html = `
 
@@ -614,69 +680,76 @@ async function loadHierarchySummary() {
                 </thead>
 
                 <tbody>
-
         `;
 
+        (data.levels || [])
+            .forEach(
+                level => {
 
-        (data.levels || []).forEach(
-            level => {
+                    const top =
+                        level.data &&
+                        level.data.length
+                        ? level.data[0].forecast
+                        : undefined;
 
-                const top =
-                    level.data &&
-                    level.data.length
-                    ? level.data[0].forecast
-                    : undefined;
+                    html += `
 
+                        <tr>
 
-                html += `
+                            <td>
+                                <strong>
+                                    ${escapeHTML(
+                                        level.level
+                                    )}
+                                </strong>
+                            </td>
 
-                    <tr>
+                            <td>
+                                ${
+                                    level.columns &&
+                                    level.columns.length
+                                    ? level.columns
+                                        .map(
+                                            column =>
+                                                escapeHTML(
+                                                    String(column)
+                                                )
+                                        )
+                                        .join(" × ")
+                                    : "All"
+                                }
+                            </td>
 
-                        <td>
-                            <strong>
-                                ${level.level}
-                            </strong>
-                        </td>
+                            <td>
+                                ${formatNumber(
+                                    level.count
+                                )}
+                            </td>
 
-                        <td>
-                            ${
-                                level.columns &&
-                                level.columns.length
-                                ? level.columns.join(" × ")
-                                : "All"
-                            }
-                        </td>
+                            <td>
+                                ${
+                                    top !== undefined
+                                    ? formatNumber(
+                                        top
+                                    )
+                                    : "—"
+                                }
+                            </td>
 
-                        <td>
-                            ${level.count}
-                        </td>
-
-                        <td>
-                            ${
-                                top !== undefined
-                                ? formatNumber(top)
-                                : "—"
-                            }
-                        </td>
-
-                    </tr>
-
-                `;
-            }
-        );
-
+                        </tr>
+                    `;
+                }
+            );
 
         html += `
 
                 </tbody>
 
             </table>
-
         `;
 
-
-        container.innerHTML = html;
-
+        container.innerHTML =
+            html;
 
     } catch (error) {
 
@@ -694,8 +767,9 @@ async function loadHierarchySummary() {
 
 async function loadProfile() {
 
-    if (!token) return;
-
+    if (!token) {
+        return;
+    }
 
     try {
 
@@ -703,24 +777,29 @@ async function loadProfile() {
             await fetch(
                 `${API_URL}/data-profile`,
                 {
-                    headers: authHeaders()
+                    headers:
+                        authHeaders()
                 }
             );
-
 
         const data =
             await response.json();
 
+        if (!response.ok) {
 
-        if (!response.ok) return;
+            console.error(
+                "Profile API error:",
+                data
+            );
 
+            return;
+        }
 
         const features =
             data.profile &&
             data.profile.external_features
             ? data.profile.external_features
             : {};
-
 
         setText(
             "price-status",
@@ -729,7 +808,6 @@ async function loadProfile() {
             : "Price information is not available in the current forecast data."
         );
 
-
         setText(
             "promotion-status",
             features.promotion
@@ -737,14 +815,12 @@ async function loadProfile() {
             : "Promotion information is not available in the current forecast data."
         );
 
-
         setText(
             "holiday-status",
             features.holiday
             ? "Holiday/event information is available."
             : "Holiday/event information is not available in the current forecast data."
         );
-
 
     } catch (error) {
 
@@ -757,7 +833,7 @@ async function loadProfile() {
 
 
 // ============================================================
-// POPULATE FILTERS
+// FILTERS
 // ============================================================
 
 function populateFilters(rows) {
@@ -769,14 +845,12 @@ function populateFilters(rows) {
         )
     );
 
-
     populateSelect(
         "store-filter",
         rows.map(
             row => row.store_id
         )
     );
-
 
     populateSelect(
         "category-filter",
@@ -785,14 +859,12 @@ function populateFilters(rows) {
         )
     );
 
-
     populateSelect(
         "department-filter",
         rows.map(
             row => row.dept_id
         )
     );
-
 
     populateSelect(
         "item-filter",
@@ -803,22 +875,20 @@ function populateFilters(rows) {
 }
 
 
-// ============================================================
-// POPULATE SELECT
-// ============================================================
-
-function populateSelect(id, values) {
+function populateSelect(
+    id,
+    values
+) {
 
     const select =
         document.getElementById(id);
 
-
-    if (!select) return;
-
+    if (!select) {
+        return;
+    }
 
     const current =
         select.value;
-
 
     const unique = [
         ...new Set(
@@ -836,44 +906,27 @@ function populateSelect(id, values) {
             )
     );
 
+    const first =
+        select.options[0]
+            ? select.options[0].outerHTML
+            : "";
 
-    select.innerHTML = "";
-
-
-    const firstOption =
-        document.createElement("option");
-
-
-    firstOption.value = "";
-
-    firstOption.textContent =
-        id === "state-filter"
-        ? "All States"
-        : id === "store-filter"
-        ? "All Stores"
-        : id === "category-filter"
-        ? "All Categories"
-        : id === "department-filter"
-        ? "All Departments"
-        : "All Items";
-
-
-    select.appendChild(
-        firstOption
-    );
-
+    select.innerHTML =
+        first;
 
     unique.forEach(
         value => {
 
             const option =
-                document.createElement("option");
+                document.createElement(
+                    "option"
+                );
 
+            option.value =
+                value;
 
-            option.value = value;
-
-            option.textContent = value;
-
+            option.textContent =
+                value;
 
             select.appendChild(
                 option
@@ -881,9 +934,12 @@ function populateSelect(id, values) {
         }
     );
 
-
     if (
-        unique.includes(current)
+        unique.some(
+            value =>
+                String(value) ===
+                String(current)
+        )
     ) {
 
         select.value =
@@ -900,7 +956,6 @@ function applyFilters() {
 
     let filtered =
         [...forecastData];
-
 
     const state =
         getValue("state-filter");
@@ -923,7 +978,9 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 row =>
-                    row.state_id === state
+                    String(
+                        row.state_id
+                    ) === String(state)
             );
     }
 
@@ -933,7 +990,9 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 row =>
-                    row.store_id === store
+                    String(
+                        row.store_id
+                    ) === String(store)
             );
     }
 
@@ -943,7 +1002,9 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 row =>
-                    row.cat_id === category
+                    String(
+                        row.cat_id
+                    ) === String(category)
             );
     }
 
@@ -953,7 +1014,9 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 row =>
-                    row.dept_id === department
+                    String(
+                        row.dept_id
+                    ) === String(department)
             );
     }
 
@@ -963,28 +1026,38 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 row =>
-                    row.id === item
+                    String(
+                        row.id
+                    ) === String(item)
             );
     }
 
 
     const total =
         filtered.reduce(
-            (sum, row) =>
+            (
+                sum,
+                row
+            ) =>
                 sum +
                 (
-                    Number(row.forecast) || 0
+                    Number(
+                        row.forecast
+                    ) || 0
                 ),
             0
         );
 
 
     const daily =
-        aggregateByDate(filtered);
+        aggregateByDate(
+            filtered
+        );
 
-
-    const days =
-        Object.keys(daily);
+    const dates =
+        Object.keys(
+            daily
+        ).sort();
 
 
     setText(
@@ -996,74 +1069,101 @@ function applyFilters() {
     setText(
         "average-units",
         formatNumber(
-            days.length
-            ? total / days.length
+            dates.length
+            ? total / dates.length
             : 0
         )
     );
 
 
-    const series =
+    const seriesSet =
         new Set(
-            filtered.map(
-                row => row.id
-            )
-        ).size;
+            filtered
+                .map(
+                    row => row.id
+                )
+                .filter(
+                    value =>
+                        value !== null &&
+                        value !== undefined
+                )
+        );
 
 
     setText(
         "series-count",
-        formatNumber(series)
+        formatNumber(
+            seriesSet.size
+        )
     );
 
 
     const peak =
-        days.length
+        dates.length
         ? Math.max(
-            ...Object.values(daily)
+            ...Object.values(
+                daily
+            )
         )
         : 0;
 
 
     setText(
         "peak-day",
-        formatNumber(peak)
+        formatNumber(
+            peak
+        )
     );
 
 
-    createForecastChart(filtered);
+    createForecastChart(
+        filtered
+    );
 
-    createCategoryChart(filtered);
 
-    createStoreChart(filtered);
+    createCategoryChart(
+        filtered
+    );
 
-    createTopItemsTable(filtered);
+
+    createStoreChart(
+        filtered
+    );
+
+
+    createTopItemsTable(
+        filtered
+    );
 }
 
 
 // ============================================================
-// AGGREGATE BY DATE
+// DAILY AGGREGATION
 // ============================================================
 
 function aggregateByDate(rows) {
 
     const result = {};
 
-
     rows.forEach(
         row => {
 
-            if (!row.date) return;
-
+            if (!row.date) {
+                return;
+            }
 
             const date =
-                String(row.date)
-                    .substring(0, 10);
-
+                String(
+                    row.date
+                ).substring(
+                    0,
+                    10
+                );
 
             const value =
-                Number(row.forecast) || 0;
-
+                Number(
+                    row.forecast
+                ) || 0;
 
             result[date] =
                 (
@@ -1072,13 +1172,12 @@ function aggregateByDate(rows) {
         }
     );
 
-
     return result;
 }
 
 
 // ============================================================
-// INTERACTIVE FORECAST LINE CHART
+// FORECAST LINE CHART
 // ============================================================
 
 function createForecastChart(rows) {
@@ -1088,37 +1187,31 @@ function createForecastChart(rows) {
             "forecast-chart"
         );
 
-
-    if (!container) return;
-
+    if (!container) {
+        return;
+    }
 
     const daily =
-        aggregateByDate(rows);
-
+        aggregateByDate(
+            rows
+        );
 
     const dates =
-        Object.keys(daily).sort();
-
+        Object.keys(
+            daily
+        ).sort();
 
     if (!dates.length) {
 
         container.innerHTML = `
-
             <div class="chart-placeholder">
-
-                <span>
-                    📈
-                </span>
-
+                <span>📈</span>
                 No forecast data available.
-
             </div>
-
         `;
 
         return;
     }
-
 
     const values =
         dates.map(
@@ -1127,117 +1220,80 @@ function createForecastChart(rows) {
         );
 
 
-    // --------------------------------------------------------
-    // CHART SIZE
-    // --------------------------------------------------------
-
     const width = 1100;
+    const height = 420;
 
-    const height = 450;
-
-    const left = 90;
-
-    const right = 35;
-
-    const top = 35;
-
-    const bottom = 85;
+    const leftPad = 80;
+    const rightPad = 35;
+    const topPad = 35;
+    const bottomPad = 70;
 
 
-    const chartWidth =
-        width - left - right;
+    const usableWidth =
+        width -
+        leftPad -
+        rightPad;
+
+    const usableHeight =
+        height -
+        topPad -
+        bottomPad;
 
 
-    const chartHeight =
-        height - top - bottom;
+    const max =
+        Math.max(
+            ...values
+        );
 
-
-    // --------------------------------------------------------
-    // Y SCALE
-    // --------------------------------------------------------
-
-    const maxValue =
-        Math.max(...values);
-
-
-    const minValue =
-        Math.min(...values);
+    const min =
+        Math.min(
+            ...values
+        );
 
 
     const range =
         Math.max(
-            maxValue - minValue,
+            max - min,
             1
         );
 
 
-    const yMin =
-        Math.max(
-            0,
-            minValue - range * 0.15
-        );
-
-
-    const yMax =
-        maxValue +
-        range * 0.15;
-
-
-    function getX(index) {
-
-        return left +
-            (
-                index /
-                Math.max(
-                    dates.length - 1,
-                    1
-                )
-            ) *
-            chartWidth;
-    }
-
-
-    function getY(value) {
-
-        return top +
-            chartHeight -
-            (
-                (
-                    value - yMin
-                ) /
-                (
-                    yMax - yMin
-                )
-            ) *
-            chartHeight;
-    }
-
-
-    // --------------------------------------------------------
-    // POINTS
-    // --------------------------------------------------------
-
     const points =
         values.map(
-            (value, index) => {
+            (
+                value,
+                index
+            ) => {
+
+                const x =
+                    leftPad +
+                    (
+                        index /
+                        Math.max(
+                            dates.length - 1,
+                            1
+                        )
+                    ) *
+                    usableWidth;
+
+                const y =
+                    topPad +
+                    usableHeight -
+                    (
+                        (
+                            value - min
+                        ) /
+                        range
+                    ) *
+                    usableHeight;
 
                 return {
-
-                    x: getX(index),
-
-                    y: getY(value),
-
-                    value: value,
-
-                    date: dates[index]
+                    x,
+                    y
                 };
             }
         );
 
-
-    // --------------------------------------------------------
-    // FORECAST LINE
-    // --------------------------------------------------------
 
     const polyline =
         points
@@ -1252,10 +1308,9 @@ function createForecastChart(rows) {
     // GRID LINES
     // --------------------------------------------------------
 
-    const gridCount = 5;
-
     let gridLines = "";
 
+    const gridCount = 5;
 
     for (
         let i = 0;
@@ -1263,94 +1318,75 @@ function createForecastChart(rows) {
         i++
     ) {
 
-        const value =
-            yMin +
-            (
-                (
-                    yMax - yMin
-                ) *
-                i /
-                gridCount
-            );
-
+        const ratio =
+            i / gridCount;
 
         const y =
-            getY(value);
+            topPad +
+            usableHeight -
+            ratio *
+            usableHeight;
 
+        const value =
+            min +
+            ratio *
+            range;
 
         gridLines += `
 
             <line
-                x1="${left}"
+                x1="${leftPad}"
                 y1="${y}"
-                x2="${width - right}"
+                x2="${width - rightPad}"
                 y2="${y}"
-                stroke="#dfe5ef"
+                stroke="#e5e7eb"
                 stroke-width="1"
             />
 
             <text
-                x="${left - 12}"
-                y="${y + 5}"
+                x="${leftPad - 10}"
+                y="${y + 4}"
                 text-anchor="end"
-                font-size="13"
+                font-size="12"
                 fill="#667085"
             >
                 ${formatNumber(value)}
             </text>
-
         `;
     }
 
 
     // --------------------------------------------------------
-    // X AXIS DATE LABELS
+    // X AXIS LABELS
     // --------------------------------------------------------
 
     let xLabels = "";
 
-
     points.forEach(
-        (point, index) => {
-
-            const showEvery =
-                Math.max(
-                    1,
-                    Math.floor(
-                        dates.length / 6
-                    )
-                );
-
+        (
+            point,
+            index
+        ) => {
 
             if (
-                index % showEvery !== 0 &&
-                index !== dates.length - 1
+                index !== 0 &&
+                index !== points.length - 1 &&
+                index % 4 !== 0
             ) {
-
                 return;
             }
-
-
-            const date =
-                dates[index];
-
-
-            const formattedDate =
-                formatChartDate(date);
-
 
             xLabels += `
 
                 <text
                     x="${point.x}"
-                    y="${height - 45}"
+                    y="${height - 30}"
                     text-anchor="middle"
-                    font-size="13"
+                    font-size="12"
                     fill="#667085"
                 >
-                    ${formattedDate}
+                    ${dates[index]}
                 </text>
-
             `;
         }
     );
@@ -1360,307 +1396,136 @@ function createForecastChart(rows) {
     // DATA POINTS
     // --------------------------------------------------------
 
-    let circles = "";
+    const circles =
+        points
+            .map(
+                (
+                    point,
+                    index
+                ) => `
 
+                    <circle
+                        cx="${point.x}"
+                        cy="${point.y}"
+                        r="5"
+                        fill="#3264d6"
+                        stroke="white"
+                        stroke-width="2"
+                    >
 
-    points.forEach(
-        (point, index) => {
+                        <title>
+                            Date: ${dates[index]}
+                            | Units: ${formatNumber(
+                                values[index]
+                            )}
+                        </title>
 
-            circles += `
-
-                <circle
-                    cx="${point.x}"
-                    cy="${point.y}"
-                    r="6"
-                    fill="#3264d6"
-                    stroke="#ffffff"
-                    stroke-width="2"
-                    class="forecast-point"
-                    data-index="${index}"
-                    data-date="${point.date}"
-                    data-value="${point.value}"
-                />
-
-            `;
-        }
-    );
+                    </circle>
+                `
+            )
+            .join("");
 
 
     // --------------------------------------------------------
-    // BUILD CHART
+    // SVG
     // --------------------------------------------------------
 
     container.innerHTML = `
 
-        <div
-            class="forecast-chart-wrapper"
-            style="
-                position:relative;
-                width:100%;
-                overflow-x:auto;
+        <svg
+            viewBox="
+                0 0
+                ${width}
+                ${height}
             "
+            width="100%"
+            height="420"
+            role="img"
+            aria-label="28-day demand forecast chart"
         >
 
-            <svg
-                id="forecast-svg"
-                viewBox="
-                    0
-                    0
-                    ${width}
-                    ${height}
-                "
-                width="100%"
-                height="${height}"
-                style="
-                    min-width:850px;
-                    display:block;
+            <!-- GRID -->
+
+            ${gridLines}
+
+
+            <!-- Y AXIS -->
+
+            <line
+                x1="${leftPad}"
+                y1="${topPad}"
+                x2="${leftPad}"
+                y2="${height - bottomPad}"
+                stroke="#98a2b3"
+                stroke-width="1.5"
+            />
+
+
+            <!-- X AXIS -->
+
+            <line
+                x1="${leftPad}"
+                y1="${height - bottomPad}"
+                x2="${width - rightPad}"
+                y2="${height - bottomPad}"
+                stroke="#98a2b3"
+                stroke-width="1.5"
+            />
+
+
+            <!-- FORECAST LINE -->
+
+            <polyline
+                points="${polyline}"
+                fill="none"
+                stroke="#3264d6"
+                stroke-width="4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+
+
+            <!-- POINTS -->
+
+            ${circles}
+
+
+            <!-- X AXIS TITLE -->
+
+            <text
+                x="${width / 2}"
+                y="${height - 5}"
+                text-anchor="middle"
+                font-size="14"
+                font-weight="600"
+                fill="#344054"
+            >
+                Date
+            </text>
+
+
+            <!-- Y AXIS TITLE -->
+
+            <text
+                x="18"
+                y="${height / 2}"
+                text-anchor="middle"
+                font-size="14"
+                font-weight="600"
+                fill="#344054"
+                transform="
+                    rotate(
+                        -90
+                        18
+                        ${height / 2}
+                    )
                 "
             >
+                Forecasted Units
+            </text>
 
-                <!-- GRID -->
-
-                ${gridLines}
-
-
-                <!-- Y AXIS -->
-
-                <line
-                    x1="${left}"
-                    y1="${top}"
-                    x2="${left}"
-                    y2="${height - bottom}"
-                    stroke="#98a2b3"
-                    stroke-width="2"
-                />
-
-
-                <!-- X AXIS -->
-
-                <line
-                    x1="${left}"
-                    y1="${height - bottom}"
-                    x2="${width - right}"
-                    y2="${height - bottom}"
-                    stroke="#98a2b3"
-                    stroke-width="2"
-                />
-
-
-                <!-- FORECAST LINE -->
-
-                <polyline
-                    points="${polyline}"
-                    fill="none"
-                    stroke="#3264d6"
-                    stroke-width="4"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                />
-
-
-                <!-- DATA POINTS -->
-
-                ${circles}
-
-
-                <!-- X AXIS LABELS -->
-
-                ${xLabels}
-
-
-                <!-- X AXIS TITLE -->
-
-                <text
-                    x="${width / 2}"
-                    y="${height - 10}"
-                    text-anchor="middle"
-                    font-size="16"
-                    font-weight="600"
-                    fill="#344054"
-                >
-                    Date
-                </text>
-
-
-                <!-- Y AXIS TITLE -->
-
-                <text
-                    x="22"
-                    y="${height / 2}"
-                    text-anchor="middle"
-                    font-size="16"
-                    font-weight="600"
-                    fill="#344054"
-                    transform="
-                        rotate(-90 22 ${height / 2})
-                    "
-                >
-                    Units
-                </text>
-
-            </svg>
-
-
-            <!-- TOOLTIP -->
-
-            <div
-                id="forecast-tooltip"
-                style="
-                    display:none;
-                    position:absolute;
-                    background:#111827;
-                    color:#ffffff;
-                    padding:10px 14px;
-                    border-radius:8px;
-                    font-size:13px;
-                    line-height:1.5;
-                    pointer-events:none;
-                    box-shadow:
-                        0 5px 18px
-                        rgba(0,0,0,0.25);
-                    z-index:100;
-                    white-space:nowrap;
-                "
-            ></div>
-
-        </div>
-
+        </svg>
     `;
-
-
-    // --------------------------------------------------------
-    // HOVER
-    // --------------------------------------------------------
-
-    const tooltip =
-        document.getElementById(
-            "forecast-tooltip"
-        );
-
-
-    const svg =
-        document.getElementById(
-            "forecast-svg"
-        );
-
-
-    const wrapper =
-        svg.parentElement;
-
-
-    const pointElements =
-        svg.querySelectorAll(
-            ".forecast-point"
-        );
-
-
-    pointElements.forEach(
-        point => {
-
-            point.addEventListener(
-                "mouseenter",
-                function () {
-
-                    const date =
-                        this.dataset.date;
-
-
-                    const value =
-                        Number(
-                            this.dataset.value
-                        );
-
-
-                    tooltip.innerHTML = `
-
-                        <strong>
-                            ${date}
-                        </strong>
-
-                        <br>
-
-                        Units:
-                        ${formatNumber(value)}
-
-                    `;
-
-
-                    tooltip.style.display =
-                        "block";
-
-
-                    this.setAttribute(
-                        "r",
-                        "9"
-                    );
-                }
-            );
-
-
-            point.addEventListener(
-                "mousemove",
-                function (event) {
-
-                    const rect =
-                        wrapper.getBoundingClientRect();
-
-
-                    tooltip.style.left =
-                        (
-                            event.clientX -
-                            rect.left +
-                            12
-                        ) + "px";
-
-
-                    tooltip.style.top =
-                        (
-                            event.clientY -
-                            rect.top -
-                            60
-                        ) + "px";
-                }
-            );
-
-
-            point.addEventListener(
-                "mouseleave",
-                function () {
-
-                    tooltip.style.display =
-                        "none";
-
-
-                    this.setAttribute(
-                        "r",
-                        "6"
-                    );
-                }
-            );
-
-        }
-    );
-}
-
-
-// ============================================================
-// FORMAT CHART DATE
-// ============================================================
-
-function formatChartDate(dateString) {
-
-    const parts =
-        String(dateString)
-            .substring(0, 10)
-            .split("-");
-
-
-    if (parts.length !== 3) {
-        return dateString;
-    }
-
-
-    return `${parts[1]}-${parts[2]}`;
 }
 
 
@@ -1675,12 +1540,11 @@ function createCategoryChart(rows) {
             "category-chart"
         );
 
-
-    if (!container) return;
-
+    if (!container) {
+        return;
+    }
 
     const groups = {};
-
 
     rows.forEach(
         row => {
@@ -1688,7 +1552,6 @@ function createCategoryChart(rows) {
             const category =
                 row.cat_id ||
                 "Unknown";
-
 
             groups[category] =
                 (
@@ -1701,7 +1564,6 @@ function createCategoryChart(rows) {
                 );
         }
     );
-
 
     renderBars(
         container,
@@ -1721,12 +1583,11 @@ function createStoreChart(rows) {
             "store-chart"
         );
 
-
-    if (!container) return;
-
+    if (!container) {
+        return;
+    }
 
     const groups = {};
-
 
     rows.forEach(
         row => {
@@ -1734,7 +1595,6 @@ function createStoreChart(rows) {
             const store =
                 row.store_id ||
                 "Unknown";
-
 
             groups[store] =
                 (
@@ -1748,7 +1608,6 @@ function createStoreChart(rows) {
         }
     );
 
-
     renderBars(
         container,
         groups
@@ -1757,7 +1616,7 @@ function createStoreChart(rows) {
 
 
 // ============================================================
-// BAR CHART
+// BAR RENDERER
 // ============================================================
 
 function renderBars(
@@ -1766,24 +1625,28 @@ function renderBars(
 ) {
 
     const entries =
-        Object.entries(groups)
-            .sort(
-                (a, b) =>
-                    b[1] - a[1]
-            )
-            .slice(0, 10);
+        Object.entries(
+            groups
+        )
+        .sort(
+            (
+                a,
+                b
+            ) =>
+                b[1] - a[1]
+        )
+        .slice(
+            0,
+            10
+        );
 
 
     if (!entries.length) {
 
         container.innerHTML = `
-
             <div class="chart-placeholder">
-
                 No data available.
-
             </div>
-
         `;
 
         return;
@@ -1803,10 +1666,8 @@ function renderBars(
             const name =
                 entry[0];
 
-
             const value =
                 entry[1];
-
 
             const width =
                 max > 0
@@ -1820,27 +1681,29 @@ function renderBars(
 
                 <div
                     style="
-                        margin-bottom:18px;
+                        margin-bottom:16px;
                     "
                 >
 
                     <div
                         style="
                             display:flex;
-                            justify-content:
-                                space-between;
-                            align-items:center;
-                            margin-bottom:7px;
+                            justify-content:space-between;
+                            margin-bottom:6px;
                             font-size:13px;
                         "
                     >
 
                         <span>
-                            ${name}
+                            ${escapeHTML(
+                                String(name)
+                            )}
                         </span>
 
                         <strong>
-                            ${formatNumber(value)}
+                            ${formatNumber(
+                                value
+                            )}
                         </strong>
 
                     </div>
@@ -1867,7 +1730,6 @@ function renderBars(
                     </div>
 
                 </div>
-
             `;
         }
     );
@@ -1879,7 +1741,7 @@ function renderBars(
 
 
 // ============================================================
-// TOP 20 ITEMS
+// TOP ITEMS
 // ============================================================
 
 function createTopItemsTable(rows) {
@@ -1889,9 +1751,9 @@ function createTopItemsTable(rows) {
             "top-items"
         );
 
-
-    if (!container) return;
-
+    if (!container) {
+        return;
+    }
 
     const groups = {};
 
@@ -1902,7 +1764,6 @@ function createTopItemsTable(rows) {
             const id =
                 row.id ||
                 "Unknown";
-
 
             groups[id] =
                 (
@@ -1918,18 +1779,26 @@ function createTopItemsTable(rows) {
 
 
     const top =
-        Object.entries(groups)
-            .sort(
-                (a, b) =>
-                    b[1] - a[1]
-            )
-            .slice(0, 20);
+        Object.entries(
+            groups
+        )
+        .sort(
+            (
+                a,
+                b
+            ) =>
+                b[1] - a[1]
+        )
+        .slice(
+            0,
+            20
+        );
 
 
     if (!top.length) {
 
         container.innerHTML =
-            "<p>No item data available.</p>";
+            "<p>No forecast items available.</p>";
 
         return;
     }
@@ -1960,12 +1829,14 @@ function createTopItemsTable(rows) {
             </thead>
 
             <tbody>
-
     `;
 
 
     top.forEach(
-        (item, index) => {
+        (
+            item,
+            index
+        ) => {
 
             html += `
 
@@ -1976,15 +1847,20 @@ function createTopItemsTable(rows) {
                     </td>
 
                     <td>
-                        ${item[0]}
+                        ${escapeHTML(
+                            String(
+                                item[0]
+                            )
+                        )}
                     </td>
 
                     <td>
-                        ${formatNumber(item[1])}
+                        ${formatNumber(
+                            item[1]
+                        )}
                     </td>
 
                 </tr>
-
             `;
         }
     );
@@ -1995,7 +1871,6 @@ function createTopItemsTable(rows) {
             </tbody>
 
         </table>
-
     `;
 
 
@@ -2005,7 +1880,7 @@ function createTopItemsTable(rows) {
 
 
 // ============================================================
-// TAB SWITCHING
+// TAB SWITCH
 // ============================================================
 
 function showTab(
@@ -2018,12 +1893,10 @@ function showTab(
             ".tab-content"
         )
         .forEach(
-            tab => {
-
+            tab =>
                 tab.classList.remove(
                     "active-tab"
-                );
-            }
+                )
         );
 
 
@@ -2046,12 +1919,10 @@ function showTab(
             ".nav-item"
         )
         .forEach(
-            item => {
-
+            item =>
                 item.classList.remove(
                     "active"
-                );
-            }
+                )
         );
 
 
@@ -2075,14 +1946,14 @@ function searchSeries() {
             "series-search"
         );
 
-
     const container =
         document.getElementById(
             "series-results"
         );
 
-
-    if (!input || !container) return;
+    if (!input || !container) {
+        return;
+    }
 
 
     const query =
@@ -2110,13 +1981,32 @@ function searchSeries() {
                         .toLowerCase();
 
 
+                    const state =
+                        String(
+                            row.state_id || ""
+                        )
+                        .toLowerCase();
+
+
+                    const category =
+                        String(
+                            row.cat_id || ""
+                        )
+                        .toLowerCase();
+
+
                     return (
                         id.includes(query) ||
-                        store.includes(query)
+                        store.includes(query) ||
+                        state.includes(query) ||
+                        category.includes(query)
                     );
                 }
             )
-            .slice(0, 100);
+            .slice(
+                0,
+                100
+            );
 
 
     if (!results.length) {
@@ -2157,7 +2047,6 @@ function searchSeries() {
             </thead>
 
             <tbody>
-
     `;
 
 
@@ -2169,19 +2058,30 @@ function searchSeries() {
                 <tr>
 
                     <td>
-                        ${row.id || "—"}
+                        ${escapeHTML(
+                            String(
+                                row.id || "—"
+                            )
+                        )}
                     </td>
 
                     <td>
-                        ${row.store_id || "—"}
+                        ${escapeHTML(
+                            String(
+                                row.store_id || "—"
+                            )
+                        )}
                     </td>
 
                     <td>
-                        ${
+                        ${escapeHTML(
                             String(
                                 row.date || "—"
-                            ).substring(0, 10)
-                        }
+                            )
+                        ).substring(
+                            0,
+                            10
+                        )}
                     </td>
 
                     <td>
@@ -2191,7 +2091,6 @@ function searchSeries() {
                     </td>
 
                 </tr>
-
             `;
         }
     );
@@ -2202,7 +2101,6 @@ function searchSeries() {
             </tbody>
 
         </table>
-
     `;
 
 
@@ -2212,7 +2110,7 @@ function searchSeries() {
 
 
 // ============================================================
-// EXPORT CSV
+// EXPORT FORECAST
 // ============================================================
 
 function exportForecast() {
@@ -2233,36 +2131,33 @@ function exportForecast() {
         );
 
 
-    const csvRows = [];
-
-    csvRows.push(
+    const rows = [
         headers.join(",")
-    );
+    ];
 
 
     forecastData.forEach(
         row => {
 
-            const values =
-                headers.map(
-                    header => {
+            rows.push(
 
-                        const value =
-                            row[header] ?? "";
+                headers
+                    .map(
+                        header => {
 
+                            const value =
+                                row[header] ??
+                                "";
 
-                        return `"${String(
-                            value
-                        ).replace(
-                            /"/g,
-                            '""'
-                        )}"`;
-                    }
-                );
-
-
-            csvRows.push(
-                values.join(",")
+                            return `"${String(
+                                value
+                            ).replace(
+                                /"/g,
+                                '""'
+                            )}"`;
+                        }
+                    )
+                    .join(",")
             );
         }
     );
@@ -2271,7 +2166,7 @@ function exportForecast() {
     const blob =
         new Blob(
             [
-                csvRows.join("\n")
+                rows.join("\n")
             ],
             {
                 type:
@@ -2281,14 +2176,19 @@ function exportForecast() {
 
 
     const url =
-        URL.createObjectURL(blob);
+        URL.createObjectURL(
+            blob
+        );
 
 
     const link =
-        document.createElement("a");
+        document.createElement(
+            "a"
+        );
 
 
-    link.href = url;
+    link.href =
+        url;
 
     link.download =
         "m5_forecast.csv";
@@ -2298,16 +2198,16 @@ function exportForecast() {
         link
     );
 
-
     link.click();
-
 
     document.body.removeChild(
         link
     );
 
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(
+        url
+    );
 }
 
 
@@ -2326,8 +2226,9 @@ function exportForecast() {
     id => {
 
         const element =
-            document.getElementById(id);
-
+            document.getElementById(
+                id
+            );
 
         if (element) {
 
@@ -2360,31 +2261,32 @@ if (modeFilter) {
 
             await loadSummary();
 
-            await loadMetrics();
         }
     );
 }
 
 
 // ============================================================
-// SEARCH ENTER KEY
+// ENTER KEY FOR LOGIN
 // ============================================================
 
-const seriesSearch =
+const passwordInput =
     document.getElementById(
-        "series-search"
+        "password"
     );
 
 
-if (seriesSearch) {
+if (passwordInput) {
 
-    seriesSearch.addEventListener(
+    passwordInput.addEventListener(
         "keydown",
         event => {
 
-            if (event.key === "Enter") {
+            if (
+                event.key === "Enter"
+            ) {
 
-                searchSeries();
+                login();
             }
         }
     );
@@ -2420,7 +2322,24 @@ function formatNumber(value) {
 
 
 // ============================================================
-// HELPER: SET TEXT
+// GET ELEMENT VALUE
+// ============================================================
+
+function getValue(id) {
+
+    const element =
+        document.getElementById(
+            id
+        );
+
+    return element
+        ? element.value
+        : "";
+}
+
+
+// ============================================================
+// SET TEXT
 // ============================================================
 
 function setText(
@@ -2429,8 +2348,9 @@ function setText(
 ) {
 
     const element =
-        document.getElementById(id);
-
+        document.getElementById(
+            id
+        );
 
     if (element) {
 
@@ -2441,21 +2361,32 @@ function setText(
 
 
 // ============================================================
-// HELPER: GET VALUE
+// HTML ESCAPE
 // ============================================================
 
-function getValue(id) {
+function escapeHTML(value) {
 
-    const element =
-        document.getElementById(id);
-
-
-    if (!element) {
-        return "";
-    }
-
-
-    return element.value;
+    return String(value)
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
 }
 
 
@@ -2518,4 +2449,11 @@ async function checkExistingLogin() {
 // START APPLICATION
 // ============================================================
 
-checkExistingLogin();
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        checkExistingLogin();
+
+    }
+);

@@ -8,9 +8,23 @@ import json
 
 import pandas as pd
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Depends,
+)
+
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials,
+)
+
+from fastapi.staticfiles import StaticFiles
+
+from fastapi.responses import FileResponse
+
 from pydantic import BaseModel
 
 
@@ -22,11 +36,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 WEB = ROOT / "web_data"
 
+FRONTEND = ROOT / "frontend"
+
 DB = ROOT / "users.db"
 
 
 # ============================================================
-# FASTAPI
+# FASTAPI APPLICATION
 # ============================================================
 
 app = FastAPI(
@@ -35,17 +51,34 @@ app = FastAPI(
         "Backend API for Walmart M5 hierarchical "
         "retail demand forecasting."
     ),
-    version="2.0.0",
+    version="3.0.0",
 )
 
+
+# ============================================================
+# CORS
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ============================================================
+# FRONTEND
+# ============================================================
+
+if FRONTEND.exists():
+
+    app.mount(
+        "/static",
+        StaticFiles(directory=FRONTEND),
+        name="static",
+    )
 
 
 # ============================================================
@@ -99,7 +132,7 @@ init_database()
 
 
 # ============================================================
-# PASSWORD
+# PASSWORD HASHING
 # ============================================================
 
 def hash_password(password: str):
@@ -113,7 +146,10 @@ def hash_password(password: str):
         120_000,
     )
 
-    return salt.hex(), password_hash.hex()
+    return (
+        salt.hex(),
+        password_hash.hex(),
+    )
 
 
 def verify_password(
@@ -124,9 +160,15 @@ def verify_password(
 
     try:
 
+        # ----------------------------------------------------
+        # New format
+        # ----------------------------------------------------
+
         if stored_salt:
 
-            salt = bytes.fromhex(stored_salt)
+            salt = bytes.fromhex(
+                stored_salt
+            )
 
             password_hash = hashlib.pbkdf2_hmac(
                 "sha256",
@@ -140,14 +182,23 @@ def verify_password(
                 stored_hash,
             )
 
+
+        # ----------------------------------------------------
+        # Old compatibility format
+        # ----------------------------------------------------
+
         if ":" in stored_hash:
 
-            salt_hex, hash_hex = stored_hash.split(
-                ":",
-                1,
+            salt_hex, hash_hex = (
+                stored_hash.split(
+                    ":",
+                    1,
+                )
             )
 
-            salt = bytes.fromhex(salt_hex)
+            salt = bytes.fromhex(
+                salt_hex
+            )
 
             password_hash = hashlib.pbkdf2_hmac(
                 "sha256",
@@ -161,7 +212,9 @@ def verify_password(
                 hash_hex,
             )
 
+
         return False
+
 
     except Exception:
 
@@ -169,7 +222,7 @@ def verify_password(
 
 
 # ============================================================
-# TOKEN
+# TOKEN SYSTEM
 # ============================================================
 
 TOKENS = {}
@@ -180,7 +233,9 @@ def create_token(username: str):
     token = secrets.token_urlsafe(32)
 
     TOKENS[token] = {
+
         "username": username,
+
         "expires": (
             datetime.now(timezone.utc)
             + timedelta(hours=12)
@@ -194,14 +249,14 @@ security = HTTPBearer()
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(
-        security
-    ),
+    credentials: HTTPAuthorizationCredentials =
+        Depends(security),
 ):
 
     token = credentials.credentials
 
     session = TOKENS.get(token)
+
 
     if session is None:
 
@@ -210,14 +265,22 @@ def get_current_user(
             detail="Invalid or expired token",
         )
 
-    if session["expires"] < datetime.now(timezone.utc):
 
-        TOKENS.pop(token, None)
+    if (
+        session["expires"]
+        < datetime.now(timezone.utc)
+    ):
+
+        TOKENS.pop(
+            token,
+            None,
+        )
 
         raise HTTPException(
             status_code=401,
             detail="Token expired",
         )
+
 
     return session["username"]
 
@@ -229,27 +292,90 @@ def get_current_user(
 class RegisterRequest(BaseModel):
 
     username: str
+
     password: str
 
 
 class LoginRequest(BaseModel):
 
     username: str
+
     password: str
 
 
 # ============================================================
-# BASIC
+# FRONTEND ROUTE
 # ============================================================
 
 @app.get("/")
-def root():
+def dashboard():
 
-    return {
-        "message": "M5 Retail Demand Forecasting API",
-        "status": "running",
-    }
+    index_file = (
+        FRONTEND / "index.html"
+    )
 
+    if not index_file.exists():
+
+        return {
+            "message": (
+                "M5 Retail Demand Forecasting API"
+            ),
+            "status": "running",
+            "frontend": "not found",
+        }
+
+    return FileResponse(
+        index_file
+    )
+
+
+# ============================================================
+# FRONTEND FILE ROUTES
+# ============================================================
+
+@app.get("/app.js")
+def frontend_app():
+
+    app_file = (
+        FRONTEND / "app.js"
+    )
+
+    if not app_file.exists():
+
+        raise HTTPException(
+            status_code=404,
+            detail="app.js not found.",
+        )
+
+    return FileResponse(
+        app_file,
+        media_type="application/javascript",
+    )
+
+
+@app.get("/style.css")
+def frontend_style():
+
+    style_file = (
+        FRONTEND / "style.css"
+    )
+
+    if not style_file.exists():
+
+        raise HTTPException(
+            status_code=404,
+            detail="style.css not found.",
+        )
+
+    return FileResponse(
+        style_file,
+        media_type="text/css",
+    )
+
+
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.get("/health")
 def health():
@@ -264,25 +390,37 @@ def health():
 # ============================================================
 
 @app.post("/auth/register")
-def register(data: RegisterRequest):
+def register(
+    data: RegisterRequest,
+):
 
     username = data.username.strip()
+
 
     if len(username) < 3:
 
         raise HTTPException(
             status_code=400,
-            detail="Username must contain at least 3 characters.",
+            detail=(
+                "Username must contain "
+                "at least 3 characters."
+            ),
         )
+
 
     if len(data.password) < 6:
 
         raise HTTPException(
             status_code=400,
-            detail="Password must contain at least 6 characters.",
+            detail=(
+                "Password must contain "
+                "at least 6 characters."
+            ),
         )
 
+
     conn = get_connection()
+
 
     try:
 
@@ -295,6 +433,7 @@ def register(data: RegisterRequest):
             (username,),
         ).fetchone()
 
+
         if existing:
 
             raise HTTPException(
@@ -302,9 +441,13 @@ def register(data: RegisterRequest):
                 detail="Username already exists.",
             )
 
-        salt, password_hash = hash_password(
-            data.password
+
+        salt, password_hash = (
+            hash_password(
+                data.password
+            )
         )
+
 
         conn.execute(
             """
@@ -321,16 +464,25 @@ def register(data: RegisterRequest):
                 username,
                 password_hash,
                 salt,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(
+                    timezone.utc
+                ).isoformat(),
             ),
         )
 
+
         conn.commit()
 
+
         return {
-            "message": "Account created successfully.",
-            "username": username,
+
+            "message":
+                "Account created successfully.",
+
+            "username":
+                username,
         }
+
 
     finally:
 
@@ -342,9 +494,12 @@ def register(data: RegisterRequest):
 # ============================================================
 
 @app.post("/auth/login")
-def login(data: LoginRequest):
+def login(
+    data: LoginRequest,
+):
 
     conn = get_connection()
+
 
     try:
 
@@ -357,19 +512,27 @@ def login(data: LoginRequest):
             FROM users
             WHERE username = ?
             """,
-            (data.username.strip(),),
+            (
+                data.username.strip(),
+            ),
         ).fetchone()
+
 
     finally:
 
         conn.close()
 
+
     if user is None:
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid username or password.",
+            detail=(
+                "Invalid username "
+                "or password."
+            ),
         )
+
 
     if not verify_password(
         data.password,
@@ -379,17 +542,28 @@ def login(data: LoginRequest):
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid username or password.",
+            detail=(
+                "Invalid username "
+                "or password."
+            ),
         )
+
 
     token = create_token(
         user["username"]
     )
 
+
     return {
-        "message": "Login successful.",
-        "username": user["username"],
-        "token": token,
+
+        "message":
+            "Login successful.",
+
+        "username":
+            user["username"],
+
+        "token":
+            token,
     }
 
 
@@ -399,11 +573,14 @@ def login(data: LoginRequest):
 
 @app.get("/auth/me")
 def current_user(
-    username: str = Depends(get_current_user),
+    username: str =
+        Depends(get_current_user),
 ):
 
     return {
-        "username": username,
+
+        "username":
+            username,
     }
 
 
@@ -411,13 +588,19 @@ def current_user(
 # LOAD FORECAST
 # ============================================================
 
-def load_forecast(mode: str):
+def load_forecast(
+    mode: str,
+):
 
     allowed_modes = {
+
         "future",
+
         "validation",
+
         "evaluation",
     }
+
 
     if mode not in allowed_modes:
 
@@ -425,11 +608,17 @@ def load_forecast(mode: str):
             status_code=400,
             detail=(
                 f"Invalid mode. "
-                f"Choose from {sorted(allowed_modes)}."
+                f"Choose from "
+                f"{sorted(allowed_modes)}."
             ),
         )
 
-    file_path = WEB / f"forecast_{mode}.parquet"
+
+    file_path = (
+        WEB /
+        f"forecast_{mode}.parquet"
+    )
+
 
     if not file_path.exists():
 
@@ -441,7 +630,23 @@ def load_forecast(mode: str):
             ),
         )
 
-    df = pd.read_parquet(file_path)
+
+    try:
+
+        df = pd.read_parquet(
+            file_path
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to read forecast "
+                f"data: {error}"
+            ),
+        )
+
 
     if "date" in df.columns:
 
@@ -449,11 +654,12 @@ def load_forecast(mode: str):
             df["date"]
         )
 
+
     return df
 
 
 # ============================================================
-# SAFE JSON CONVERSION
+# SAFE JSON VALUE
 # ============================================================
 
 def clean_value(value):
@@ -462,22 +668,38 @@ def clean_value(value):
 
         return None
 
+
     if isinstance(
         value,
-        (pd.Timestamp, datetime),
+        (
+            pd.Timestamp,
+            datetime,
+        ),
     ):
 
         return value.isoformat()
 
-    if hasattr(value, "item"):
+
+    if hasattr(
+        value,
+        "item",
+    ):
 
         try:
+
             return value.item()
+
         except Exception:
+
             pass
+
 
     return value
 
+
+# ============================================================
+# CLEAN RECORDS
+# ============================================================
 
 def clean_records(df):
 
@@ -485,123 +707,248 @@ def clean_records(df):
         orient="records"
     )
 
+
     cleaned = []
+
 
     for record in records:
 
         cleaned.append(
+
             {
-                key: clean_value(value)
-                for key, value in record.items()
+                key:
+                    clean_value(value)
+
+                for key, value
+                in record.items()
             }
+
         )
+
 
     return cleaned
 
 
 # ============================================================
-# FORECAST
+# FORECAST API
 # ============================================================
 
 @app.get("/forecast")
 def forecast(
+
     mode: str = "future",
-    username: str = Depends(get_current_user),
+
+    username: str =
+        Depends(get_current_user),
 ):
 
-    df = load_forecast(mode)
+    df = load_forecast(
+        mode
+    )
+
 
     if "forecast" not in df.columns:
 
         raise HTTPException(
             status_code=500,
             detail=(
-                "Forecast file does not contain "
-                "'forecast' column."
+                "Forecast file does not "
+                "contain 'forecast' column."
             ),
         )
+
 
     if "date" not in df.columns:
 
         raise HTTPException(
             status_code=500,
             detail=(
-                "Forecast file does not contain "
-                "'date' column."
+                "Forecast file does not "
+                "contain 'date' column."
             ),
         )
 
+
     series_count = (
-        int(df["id"].nunique())
+
+        int(
+            df["id"].nunique()
+        )
+
         if "id" in df.columns
+
         else 0
     )
+
 
     daily = (
         df.groupby("date")["forecast"]
         .sum()
     )
 
+
     return {
-        "user": username,
-        "mode": mode,
-        "rows": len(df),
-        "series": series_count,
-        "total_units": float(
-            df["forecast"].sum()
-        ),
-        "avg_units_per_day": float(
-            daily.mean()
-        ),
-        "data": clean_records(df),
+
+        "user":
+            username,
+
+        "mode":
+            mode,
+
+        "rows":
+            len(df),
+
+        "series":
+            series_count,
+
+        "total_units":
+            float(
+                df["forecast"].sum()
+            ),
+
+        "avg_units_per_day":
+            float(
+                daily.mean()
+            ),
+
+        "data":
+            clean_records(df),
     }
 
 
 # ============================================================
-# SUMMARY
+# FORECAST SUMMARY
 # ============================================================
 
 @app.get("/forecast/summary")
 def forecast_summary(
+
     mode: str = "future",
-    username: str = Depends(get_current_user),
+
+    username: str =
+        Depends(get_current_user),
 ):
 
-    df = load_forecast(mode)
+    df = load_forecast(
+        mode
+    )
+
+
+    if "forecast" not in df.columns:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Forecast column not "
+                "found."
+            ),
+        )
+
+
+    if "date" not in df.columns:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Date column not "
+                "found."
+            ),
+        )
+
 
     daily = (
+
         df.groupby(
             "date",
             as_index=False,
         )["forecast"]
+
         .sum()
     )
+
+
+    if daily.empty:
+
+        return {
+
+            "user":
+                username,
+
+            "mode":
+                mode,
+
+            "total_units":
+                0,
+
+            "series_forecast":
+                0,
+
+            "avg_units_per_day":
+                0,
+
+            "peak_day_units":
+                0,
+
+            "peak_date":
+                None,
+
+            "daily_forecast":
+                [],
+        }
+
 
     peak_row = daily.loc[
         daily["forecast"].idxmax()
     ]
 
-    return {
-        "user": username,
-        "mode": mode,
-        "total_units": float(
-            df["forecast"].sum()
-        ),
-        "series_forecast": int(
+
+    series_count = (
+
+        int(
             df["id"].nunique()
-        ) if "id" in df.columns else 0,
-        "avg_units_per_day": float(
-            daily["forecast"].mean()
-        ),
-        "peak_day_units": float(
-            daily["forecast"].max()
-        ),
-        "peak_date": clean_value(
-            peak_row["date"]
-        ),
-        "daily_forecast": clean_records(
-            daily
-        ),
+        )
+
+        if "id" in df.columns
+
+        else 0
+    )
+
+
+    return {
+
+        "user":
+            username,
+
+        "mode":
+            mode,
+
+        "total_units":
+            float(
+                df["forecast"].sum()
+            ),
+
+        "series_forecast":
+            series_count,
+
+        "avg_units_per_day":
+            float(
+                daily["forecast"].mean()
+            ),
+
+        "peak_day_units":
+            float(
+                daily["forecast"].max()
+            ),
+
+        "peak_date":
+            clean_value(
+                peak_row["date"]
+            ),
+
+        "daily_forecast":
+            clean_records(
+                daily
+            ),
     }
 
 
@@ -611,100 +958,173 @@ def forecast_summary(
 
 @app.get("/metrics")
 def metrics(
+
     mode: str = "validation",
-    username: str = Depends(get_current_user),
+
+    username: str =
+        Depends(get_current_user),
 ):
 
     metrics_file = (
-        WEB / f"metrics_{mode}.json"
+        WEB /
+        f"metrics_{mode}.json"
     )
+
 
     if not metrics_file.exists():
 
         return {
-            "user": username,
-            "mode": mode,
-            "message": (
-                "No accuracy metrics available "
-                "for this window."
-            ),
-            "metrics": {},
+
+            "user":
+                username,
+
+            "mode":
+                mode,
+
+            "message":
+                (
+                    "No accuracy metrics "
+                    "available for this window."
+                ),
+
+            "metrics":
+                {},
         }
 
-    metrics_data = json.loads(
-        metrics_file.read_text()
-    )
+
+    try:
+
+        metrics_data = json.loads(
+            metrics_file.read_text(
+                encoding="utf-8"
+            )
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to read metrics "
+                f"file: {error}"
+            ),
+        )
+
 
     return {
-        "user": username,
-        "mode": mode,
-        "metrics": metrics_data,
+
+        "user":
+            username,
+
+        "mode":
+            mode,
+
+        "metrics":
+            metrics_data,
     }
+
+
+# ============================================================
+# UNIQUE VALUES
+# ============================================================
+
+def unique_values(
+    df,
+    column,
+):
+
+    if column not in df.columns:
+
+        return []
+
+
+    values = []
+
+
+    for value in (
+        df[column]
+        .dropna()
+        .unique()
+    ):
+
+        cleaned = clean_value(
+            value
+        )
+
+
+        if cleaned is not None:
+
+            values.append(
+                cleaned
+            )
+
+
+    return sorted(
+        values,
+        key=lambda x: str(x),
+    )
 
 
 # ============================================================
 # HIERARCHY
 # ============================================================
 
-def unique_values(df, column):
+@app.get("/hierarchy")
+def hierarchy(
 
-    if column not in df.columns:
+    username: str =
+        Depends(get_current_user),
+):
 
-        return []
-
-    return sorted(
-        [
-            clean_value(value)
-            for value in
-            df[column].dropna().unique()
-        ],
-        key=lambda x: str(x),
+    df = load_forecast(
+        "future"
     )
 
 
-@app.get("/hierarchy")
-def hierarchy(
-    username: str = Depends(get_current_user),
-):
-
-    df = load_forecast("future")
-
     return {
-        "user": username,
 
-        "states": unique_values(
-            df,
-            "state_id",
-        ),
+        "user":
+            username,
 
-        "stores": unique_values(
-            df,
-            "store_id",
-        ),
+        "states":
+            unique_values(
+                df,
+                "state_id",
+            ),
 
-        "categories": unique_values(
-            df,
-            "cat_id",
-        ),
+        "stores":
+            unique_values(
+                df,
+                "store_id",
+            ),
 
-        "departments": unique_values(
-            df,
-            "dept_id",
-        ),
+        "categories":
+            unique_values(
+                df,
+                "cat_id",
+            ),
 
-        "items": unique_values(
-            df,
-            "id",
-        ),
+        "departments":
+            unique_values(
+                df,
+                "dept_id",
+            ),
 
-        "columns": list(df.columns),
+        "items":
+            unique_values(
+                df,
+                "id",
+            ),
+
+        "columns":
+            list(df.columns),
     }
 
 
 # ============================================================
-# HIERARCHY LEVEL SUMMARY
+# HIERARCHY SUMMARY
 #
-# Standard M5 hierarchy contains aggregation levels such as:
+# Standard M5 hierarchy levels:
 #
 # 1. Total
 # 2. State
@@ -718,19 +1138,35 @@ def hierarchy(
 # 10. Item
 # 11. Item × State
 # 12. Item × Store
-#
-# We calculate the levels that the forecast data supports.
 # ============================================================
 
 @app.get("/hierarchy/summary")
 def hierarchy_summary(
+
     mode: str = "future",
-    username: str = Depends(get_current_user),
+
+    username: str =
+        Depends(get_current_user),
 ):
 
-    df = load_forecast(mode)
+    df = load_forecast(
+        mode
+    )
+
+
+    if "forecast" not in df.columns:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Forecast column not "
+                "found."
+            ),
+        )
+
 
     levels = []
+
 
     def add_level(
         name,
@@ -738,114 +1174,240 @@ def hierarchy_summary(
     ):
 
         existing = [
-            c for c in columns
-            if c in df.columns
+
+            column
+
+            for column in columns
+
+            if column in df.columns
         ]
+
 
         if not existing:
 
             return
 
+
         grouped = (
+
             df.groupby(
                 existing,
                 dropna=False,
                 as_index=False,
             )["forecast"]
+
             .sum()
         )
 
-        grouped = grouped.sort_values(
-            "forecast",
-            ascending=False,
-        ).head(20)
 
-        levels.append(
-            {
-                "level": name,
-                "columns": existing,
-                "count": len(grouped),
-                "data": clean_records(
-                    grouped
-                ),
-            }
+        grouped = (
+
+            grouped
+
+            .sort_values(
+                "forecast",
+                ascending=False,
+            )
+
+            .head(20)
         )
 
-    # Level 1
+
+        levels.append(
+
+            {
+
+                "level":
+                    name,
+
+                "columns":
+                    existing,
+
+                "count":
+                    len(grouped),
+
+                "data":
+                    clean_records(
+                        grouped
+                    ),
+            }
+
+        )
+
+
+    # --------------------------------------------------------
+    # LEVEL 1 — TOTAL
+    # --------------------------------------------------------
+
     levels.append(
+
         {
-            "level": "Total",
-            "columns": [],
-            "count": 1,
-            "data": [
-                {
-                    "forecast": float(
-                        df["forecast"].sum()
-                    )
-                }
-            ],
+
+            "level":
+                "Total",
+
+            "columns":
+                [],
+
+            "count":
+                1,
+
+            "data":
+                [
+
+                    {
+
+                        "forecast":
+                            float(
+                                df["forecast"]
+                                .sum()
+                            )
+                    }
+
+                ],
         }
+
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 2 — STATE
+    # --------------------------------------------------------
 
     add_level(
         "State",
         ["state_id"],
     )
 
+
+    # --------------------------------------------------------
+    # LEVEL 3 — STORE
+    # --------------------------------------------------------
+
     add_level(
         "Store",
         ["store_id"],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 4 — CATEGORY
+    # --------------------------------------------------------
 
     add_level(
         "Category",
         ["cat_id"],
     )
 
+
+    # --------------------------------------------------------
+    # LEVEL 5 — DEPARTMENT
+    # --------------------------------------------------------
+
     add_level(
         "Department",
         ["dept_id"],
     )
 
+
+    # --------------------------------------------------------
+    # LEVEL 6 — STATE × CATEGORY
+    # --------------------------------------------------------
+
     add_level(
         "State × Category",
-        ["state_id", "cat_id"],
+        [
+            "state_id",
+            "cat_id",
+        ],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 7 — STATE × DEPARTMENT
+    # --------------------------------------------------------
 
     add_level(
         "State × Department",
-        ["state_id", "dept_id"],
+        [
+            "state_id",
+            "dept_id",
+        ],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 8 — STORE × CATEGORY
+    # --------------------------------------------------------
 
     add_level(
         "Store × Category",
-        ["store_id", "cat_id"],
+        [
+            "store_id",
+            "cat_id",
+        ],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 9 — STORE × DEPARTMENT
+    # --------------------------------------------------------
 
     add_level(
         "Store × Department",
-        ["store_id", "dept_id"],
+        [
+            "store_id",
+            "dept_id",
+        ],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 10 — ITEM
+    # --------------------------------------------------------
 
     add_level(
         "Item",
         ["id"],
     )
 
+
+    # --------------------------------------------------------
+    # LEVEL 11 — ITEM × STATE
+    # --------------------------------------------------------
+
     add_level(
         "Item × State",
-        ["id", "state_id"],
+        [
+            "id",
+            "state_id",
+        ],
     )
+
+
+    # --------------------------------------------------------
+    # LEVEL 12 — ITEM × STORE
+    # --------------------------------------------------------
 
     add_level(
         "Item × Store",
-        ["id", "store_id"],
+        [
+            "id",
+            "store_id",
+        ],
     )
 
+
     return {
-        "user": username,
-        "mode": mode,
-        "levels": levels,
+
+        "user":
+            username,
+
+        "mode":
+            mode,
+
+        "levels":
+            levels,
     }
 
 
@@ -855,95 +1417,152 @@ def hierarchy_summary(
 
 @app.get("/data-profile")
 def data_profile(
-    username: str = Depends(get_current_user),
+
+    username: str =
+        Depends(get_current_user),
 ):
 
-    df = load_forecast("future")
+    df = load_forecast(
+        "future"
+    )
+
 
     profile = {}
 
+
     profile["rows"] = len(df)
+
 
     profile["columns"] = list(
         df.columns
     )
 
+
     profile["date_min"] = (
-        clean_value(df["date"].min())
+
+        clean_value(
+            df["date"].min()
+        )
+
         if "date" in df.columns
+
         else None
     )
+
 
     profile["date_max"] = (
-        clean_value(df["date"].max())
+
+        clean_value(
+            df["date"].max()
+        )
+
         if "date" in df.columns
+
         else None
     )
+
 
     profile["series"] = (
-        int(df["id"].nunique())
+
+        int(
+            df["id"].nunique()
+        )
+
         if "id" in df.columns
+
         else None
     )
 
+
     profile["states"] = len(
+
         unique_values(
             df,
             "state_id",
         )
     )
 
+
     profile["stores"] = len(
+
         unique_values(
             df,
             "store_id",
         )
     )
 
+
     profile["categories"] = len(
+
         unique_values(
             df,
             "cat_id",
         )
     )
 
+
     profile["departments"] = len(
+
         unique_values(
             df,
             "dept_id",
         )
     )
 
+
     profile["items"] = len(
+
         unique_values(
             df,
             "id",
         )
     )
 
-    # Detect external covariates.
+
+    # --------------------------------------------------------
+    # EXTERNAL FEATURES
+    # --------------------------------------------------------
+
     column_names = [
-        str(c).lower()
-        for c in df.columns
+
+        str(column).lower()
+
+        for column in df.columns
     ]
 
+
     profile["external_features"] = {
-        "price": any(
-            "price" in c
-            for c in column_names
-        ),
-        "promotion": any(
-            "promo" in c
-            for c in column_names
-        ),
-        "holiday": any(
-            "holiday" in c or
-            "event" in c
-            for c in column_names
-        ),
+
+        "price":
+            any(
+                "price" in column
+                for column in column_names
+            ),
+
+        "promotion":
+            any(
+                "promo" in column
+                for column in column_names
+            ),
+
+        "holiday":
+            any(
+                (
+                    "holiday" in column
+                    or
+                    "event" in column
+                )
+
+                for column in column_names
+            ),
     }
 
+
     return {
-        "user": username,
-        "profile": profile,
+
+        "user":
+            username,
+
+        "profile":
+            profile,
     }
