@@ -1,0 +1,8 @@
+{
+  "mode": "validation",
+  "best_iteration": 237,
+  "valid_rmse": 2.0853365588671817,
+  "n_series": 30490,
+  "first_date": "2016-04-25",
+  "last_date": "2016-05-22"
+}

@@ -59,39 +59,47 @@ def main() -> None:
         raise SystemExit("no rows to predict - check MODE and the horizon days")
 
     y = df["sales"].to_numpy(dtype="float32")
-    X = to_float32(df, feats)
     keep = df[["id", "item_id", "dept_id", "cat_id", "store_id", "state_id",
                "d_num", "date"]][m_te].copy()
+
+    # Build the feature matrix straight into a disk-backed memmap, one column
+    # at a time. Boolean-indexing a 10M-row DataFrame makes pandas allocate a
+    # fresh block per column, which fails on a low-memory machine; writing
+    # into a memmap keeps peak RAM at roughly one column.
+    n_rows, n_feat = len(df), len(feats)
+    mm_path = C.PROC / f"_matrix_{C.MODE}.f32"
+    print(f"building {n_rows:,} x {n_feat} matrix on disk ...")
+    X = np.memmap(mm_path, dtype="float32", mode="w+", shape=(n_rows, n_feat))
+    for j, c in enumerate(feats):
+        col = df[c]
+        if isinstance(col.dtype, pd.CategoricalDtype):
+            X[:, j] = col.cat.codes.to_numpy(dtype="float32")
+        else:
+            X[:, j] = pd.to_numeric(col, errors="coerce").to_numpy("float32")
+        df.drop(columns=c, inplace=True)      # release as we go
+        if j % 10 == 0:
+            gc.collect()
+    X.flush()
     del df
     gc.collect()
-    print(f"feature matrix {X.shape} "
-          f"{X.memory_usage(deep=True).sum() / 1e9:.2f} GB")
 
     cat_idx = [feats.index(c) for c in CAT_FEATURES if c in feats]
+    tr_rows = np.flatnonzero(m_tr)
+    va_rows = np.flatnonzero(m_va)
+    te_rows = np.flatnonzero(m_te)
 
-    # Build LightGBM's internal binned dataset, then drop the raw copies.
-    # Holding both at once is what triggers "bad allocation" on 8-16 GB boxes.
-    Xtr = X[m_tr].to_numpy(dtype="float32", copy=False)
-    dtr = lgb.Dataset(Xtr, y[m_tr], categorical_feature=cat_idx,
+    dtr = lgb.Dataset(X[tr_rows], y[tr_rows], categorical_feature=cat_idx,
                       feature_name=feats, free_raw_data=True,
-                      params={"max_bin": C.LGB_PARAMS.get("max_bin", 127)})
+                      params=C.LGB_PARAMS)
     dtr.construct()
-    del Xtr
     gc.collect()
 
-    Xva = X[m_va].to_numpy(dtype="float32", copy=False)
-    dva = lgb.Dataset(Xva, y[m_va], categorical_feature=cat_idx,
-                      feature_name=feats, reference=dtr, free_raw_data=True)
+    dva = lgb.Dataset(X[va_rows], y[va_rows], categorical_feature=cat_idx,
+                      feature_name=feats, reference=dtr, free_raw_data=True,
+                      params=C.LGB_PARAMS)
     dva.construct()
-    del Xva
     gc.collect()
-
-    # only the prediction slice is still needed as a frame
-    Xte = X[m_te].copy()
-    del X
-    gc.collect()
-    print(f"datasets built, raw frame released "
-          f"(predict slice {Xte.memory_usage(deep=True).sum() / 1e9:.2f} GB)")
+    print("datasets built")
 
     print("training ...")
     model = lgb.train(
@@ -112,10 +120,16 @@ def main() -> None:
 
     print("\npredicting ...")
     chunks = []
-    for i in range(0, len(Xte), 2_000_000):
-        chunks.append(model.predict(Xte.iloc[i:i + 2_000_000],
+    for i in range(0, len(te_rows), 500_000):
+        chunks.append(model.predict(X[te_rows[i:i + 500_000]],
                                     num_iteration=model.best_iteration))
     pred = np.concatenate(chunks) if chunks else np.array([])
+    del X
+    gc.collect()
+    try:
+        mm_path.unlink()
+    except OSError:
+        pass
 
     out = keep
     out["forecast"] = np.clip(pred, 0, None).astype("float32")

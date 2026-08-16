@@ -1,0 +1,102 @@
+{
+  "mode": "validation",
+  "overall": {
+    "mae": 1.0591513378286042,
+    "rmse": 2.1823594283388164,
+    "wape_pct": 73.40843539274047,
+    "aggregate_forecast_error_pct": 2.8735083608326715,
+    "bias_pct": -2.8735083608326772,
+    "actual_total_units": 1231764.0,
+    "forecast_total_units": 1196369.158474273,
+    "n_series": 30490,
+    "n_days": 28,
+    "n_predictions": 853720
+  },
+  "wrmsse": 0.5939572876056286,
+  "hierarchy_levels": [
+    {
+      "level": "L1  Total",
+      "n_series": 1,
+      "rmsse": 0.3698699912474619,
+      "mae": 1561.4296875,
+      "bias_pct": -2.8735079071559144
+    },
+    {
+      "level": "L2  State",
+      "n_series": 3,
+      "rmsse": 0.4215383730971777,
+      "mae": 682.5777180989584,
+      "bias_pct": -2.8735081450007915
+    },
+    {
+      "level": "L3  Store",
+      "n_series": 10,
+      "rmsse": 0.524399486914867,
+      "mae": 269.55048828125,
+      "bias_pct": -2.873508303564032
+    },
+    {
+      "level": "L4  Category",
+      "n_series": 3,
+      "rmsse": 0.4241772827070206,
+      "mae": 657.3822544642857,
+      "bias_pct": -2.8735088981762136
+    },
+    {
+      "level": "L5  Department",
+      "n_series": 7,
+      "rmsse": 0.4996866427697035,
+      "mae": 349.66011779162346,
+      "bias_pct": -2.8735082168497628
+    },
+    {
+      "level": "L6  State-Category",
+      "n_series": 9,
+      "rmsse": 0.4934788330093024,
+      "mae": 287.38199143182663,
+      "bias_pct": -2.8735081549109864
+    },
+    {
+      "level": "L7  State-Department",
+      "n_series": 21,
+      "rmsse": 0.557167512085486,
+      "mae": 151.062762461552,
+      "bias_pct": -2.873508512917078
+    },
+    {
+      "level": "L8  Store-Category",
+      "n_series": 30,
+      "rmsse": 0.5912966267050668,
+      "mae": 116.40816857474191,
+      "bias_pct": -2.873508249057921
+    },
+    {
+      "level": "L9  Store-Department",
+      "n_series": 70,
+      "rmsse": 0.6599496299763721,
+      "mae": 61.23202877433933,
+      "bias_pct": -2.8735084203186156
+    },
+    {
+      "level": "L10 Item",
+      "n_series": 3049,
+      "rmsse": 0.8739357971233122,
+      "mae": 4.437510177681428,
+      "bias_pct": -2.873508321624263
+    },
+    {
+      "level": "L11 Item-State",
+      "n_series": 9147,
+      "rmsse": 0.8615166487563906,
+      "mae": 2.1944112804672775,
+      "bias_pct": -2.8735083663444794
+    },
+    {
+      "level": "L12 Item-Store",
+      "n_series": 30490,
+      "rmsse": 0.8504706268753819,
+      "mae": 1.0591513378286042,
+      "bias_pct": -2.8735083608326772
+    }
+  ]
+}

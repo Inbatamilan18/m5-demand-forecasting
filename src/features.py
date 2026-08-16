@@ -8,6 +8,8 @@ Run:  python -m src.features
 import gc
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from src import config as C
 
@@ -75,20 +77,79 @@ def add_features(df: pd.DataFrame, shift: int | None = None) -> pd.DataFrame:
         df[f"lag_{lag}"] = g.shift(lag).astype("float32")
 
     print("  rolling stats ...")
-    base = g.shift(shift)
-    for w in ROLL_WINDOWS:
-        r = base.groupby(df["id"], observed=True).rolling(w, min_periods=1)
-        df[f"rmean_{w}"] = r.mean().reset_index(level=0, drop=True).astype("float32")
-    for w in [7, 28]:
-        r = base.groupby(df["id"], observed=True).rolling(w, min_periods=1)
-        df[f"rstd_{w}"] = r.std().reset_index(level=0, drop=True).astype("float32")
+    base = g.shift(shift).to_numpy(dtype="float32")
 
-    # intermittency: share of zero-sales days recently
-    zero = (base == 0).astype("float32")
-    df["zero_rate_28"] = (zero.groupby(df["id"], observed=True)
-                          .rolling(28, min_periods=1).mean()
-                          .reset_index(level=0, drop=True).astype("float32"))
-    del base, zero, g
+    # pandas' groupby(...).rolling() allocates several int64 index arrays the
+    # length of the whole frame, which exhausts RAM at ~22M rows. The frame is
+    # already sorted by (id, d_num), so compute each window with cumulative
+    # sums over contiguous blocks instead: same numbers, a fraction of the
+    # memory, and much faster.
+    codes = df["id"].cat.codes.to_numpy() if isinstance(
+        df["id"].dtype, pd.CategoricalDtype) else pd.factorize(df["id"])[0]
+    starts = np.flatnonzero(np.r_[True, codes[1:] != codes[:-1]])
+    ends = np.r_[starts[1:], len(codes)]
+    # position of each row within its own series
+    pos = np.arange(len(codes)) - np.repeat(starts, ends - starts)
+
+    nan = np.isnan(base)
+    vals = np.where(nan, np.float32(0), base).astype("float32")
+    cnt = (~nan).astype("float32")
+
+    def _block_cumsum(a):
+        """cumsum that resets at every series boundary (in-place, float32)"""
+        c = np.cumsum(a, dtype="float32")
+        offset = np.empty(len(starts), dtype="float32")
+        offset[0] = 0.0
+        if len(starts) > 1:
+            offset[1:] = c[starts[1:] - 1]
+        c -= np.repeat(offset, ends - starts)
+        return c
+
+    ones = _block_cumsum(np.ones(len(base), dtype="float32"))
+    csum = _block_cumsum(vals)
+    ccnt = _block_cumsum(cnt)
+    csq = _block_cumsum(vals * vals)
+    czero = _block_cumsum(((base == 0) & ~nan).astype("float32"))
+
+    ar = np.arange(len(base))
+
+    def _window(cum, w):
+        """Sum over the trailing w rows, clipped at the series start.
+
+        For a row whose within-series position is p, the window covers
+        positions max(p-w+1, 0)..p. cum already holds the running total from
+        the series start, so subtract the total at position p-w when it
+        exists.
+        """
+        idx = np.maximum(ar - w, 0)
+        prev = np.where(pos >= w, cum[idx], 0.0)
+        return cum - prev
+
+    for w in ROLL_WINDOWS:
+        n = _window(ccnt, w)
+        df[f"rmean_{w}"] = np.divide(
+            _window(csum, w), n, out=np.full(len(base), np.nan, dtype="float32"),
+            where=n > 0).astype("float32")
+
+    for w in [7, 28]:
+        n = _window(ccnt, w)
+        m = np.divide(_window(csum, w), n, out=np.full(len(base), np.nan, dtype="float32"),
+                      where=n > 0)
+        var = np.divide(_window(csq, w), n, out=np.full(len(base), np.nan, dtype="float32"),
+                        where=n > 0) - m * m
+        # sample std, matching pandas' default ddof=1
+        var = np.where(n > 1, var * n / (n - 1), np.nan)
+        df[f"rstd_{w}"] = np.sqrt(np.clip(var, 0, None)).astype("float32")
+
+    # (base == 0) is False for NaN, and pandas rolls that dense boolean, so
+    # the denominator is the number of ROWS in the window, not the non-null
+    # count. Use the row count to match.
+    rows = _window(ones, 28)
+    df["zero_rate_28"] = np.divide(
+        _window(czero, 28), rows, out=np.full(len(base), np.nan, dtype="float32"),
+        where=rows > 0).astype("float32")
+
+    del base, vals, cnt, csum, ccnt, csq, czero, ones, nan, g
     gc.collect()
 
     print("  price features ...")
@@ -129,22 +190,54 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
 
 
 def main() -> None:
+    """Build features one STORE at a time.
+
+    The full panel is ~22M rows; several float arrays that size will not fit
+    on a 8-16 GB Windows box. Each store is ~1/10th of the data and is
+    self-contained (all lags and rollings are within-series), so processing
+    per store gives identical results at a tenth of the peak memory.
+    """
     src = C.PROC / f"base_{C.MODE}.parquet"
     print(f"reading {src}")
-    df = pd.read_parquet(src)
-    df = add_features(df)
 
-    train_end = data_train_end(df)
-    if C.TRAIN_TAIL_DAYS:
-        df = df[df["d_num"] > train_end - C.TRAIN_TAIL_DAYS].reset_index(drop=True)
-    # rows before an item was ever priced carry no information
-    df = df[df["sell_price"].notna() | (df["d_num"] > train_end)].reset_index(drop=True)
-    df = df[(df["d_num"] <= train_end) |
-            (df["d_num"] >= C.MODES[C.MODE][1])].reset_index(drop=True)
+    stores = pd.read_parquet(src, columns=["store_id"])["store_id"]
+    store_list = sorted(str(x) for x in stores.dropna().unique())
+    del stores
+    gc.collect()
+    print(f"processing {len(store_list)} stores one at a time")
 
-    out = C.PROC / f"features_{C.MODE}.parquet"
-    df.to_parquet(out, index=False)
-    print(f"wrote {out}  rows={len(df):,}  cols={len(df.columns)}")
+    out_path = C.PROC / f"features_{C.MODE}.parquet"
+    writer = None
+    total = 0
+
+    for i, store in enumerate(store_list, 1):
+        part = pd.read_parquet(src, filters=[("store_id", "==", store)])
+        if part.empty:
+            continue
+        part = add_features(part)
+
+        train_end = data_train_end(part)
+        if C.TRAIN_TAIL_DAYS:
+            part = part[part["d_num"] > train_end - C.TRAIN_TAIL_DAYS]
+        part = part[part["sell_price"].notna() | (part["d_num"] > train_end)]
+        part = part[(part["d_num"] <= train_end) |
+                    (part["d_num"] >= C.MODES[C.MODE][1])]
+        part = part.reset_index(drop=True)
+
+        table = pa.Table.from_pandas(part, preserve_index=False)
+        if writer is None:
+            writer = pq.ParquetWriter(out_path, table.schema,
+                                      compression="snappy")
+        writer.write_table(table)
+        total += len(part)
+        print(f"  [{i}/{len(store_list)}] {store}: {len(part):,} rows")
+
+        del part, table
+        gc.collect()
+
+    if writer is not None:
+        writer.close()
+    print(f"wrote {out_path}  rows={total:,}")
 
 
 if __name__ == "__main__":

@@ -3,9 +3,15 @@ __pycache__/
 **/__pycache__/
 *.pyc
 data/
-outputs/*.txt
+outputs/
+src/
 .git/
 .gitignore
 *.zip
+users.db
+app.py
+app_deploy.py
+requirements.txt
 .streamlit/
-README.md
+docker-compose.yml
+*.md

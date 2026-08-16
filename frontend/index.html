@@ -1,956 +1,349 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        M5 Retail Demand Forecasting
-    </title>
-
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M5 Retail Demand Forecasting</title>
+<link rel="stylesheet" href="style.css">
 </head>
-
-
 <body>
 
+<section id="dashboard-section" class="dashboard">
 
-<!-- =========================================================
-     LOGIN
-========================================================= -->
-
-<section
-    id="login-section"
-    class="login-page"
->
-
-    <div class="login-card">
-
-        <div class="login-logo">
-            📦
-        </div>
-
-        <h1>
-            M5 Retail Demand Forecasting
-        </h1>
-
-        <p>
-            Walmart Retail Demand Forecasting Dashboard
-        </p>
-
-
-        <!-- ================= LOGIN ================= -->
-
-        <input
-            id="username"
-            type="text"
-            placeholder="Username"
-        >
-
-        <input
-            id="password"
-            type="password"
-            placeholder="Password"
-        >
-
-        <button
-            onclick="login()"
-            class="primary-btn login-btn"
-        >
-            Login
-        </button>
-
-        <p id="login-message"></p>
-
-
-        <hr>
-
-
-        <!-- ================= SIGN UP ================= -->
-
-        <h2>
-            Create New Account
-        </h2>
-
-        <input
-            id="signup-username"
-            type="text"
-            placeholder="Choose a username"
-        >
-
-        <input
-            id="signup-password"
-            type="password"
-            placeholder="Create a password"
-        >
-
-        <input
-            id="signup-confirm-password"
-            type="password"
-            placeholder="Confirm password"
-        >
-
-        <button
-            onclick="register()"
-            class="primary-btn login-btn"
-        >
-            Sign Up
-        </button>
-
-        <p id="signup-message"></p>
-
-
-    </div>
-
-</section>
-
-
-
-<!-- =========================================================
-     DASHBOARD
-========================================================= -->
-
-<section
-    id="dashboard-section"
-    class="dashboard"
-    style="display:none;"
->
-
-
-<!-- =========================================================
-     SIDEBAR
-========================================================= -->
-
+<!-- ================= SIDEBAR ================= -->
 <aside class="sidebar">
-
-    <div class="sidebar-logo">
-
-        <div class="sidebar-icon">
-            📦
-        </div>
-
-        <div>
-
-            <h2>
-                Demand Forecasting
-            </h2>
-
-            <span>
-                Walmart M5
-            </span>
-
-        </div>
-
+  <div class="sidebar-logo">
+    <div class="sidebar-icon">📦</div>
+    <div>
+      <h2>Demand Forecasting</h2>
+      <span>Walmart M5</span>
     </div>
+  </div>
 
+  <div class="navigation">
+    <button class="nav-item active" onclick="showTab('overview-tab', this)">🏪 Overview</button>
+    <button class="nav-item" onclick="showTab('forecast-tab', this)">📈 Forecast</button>
+    <button class="nav-item" onclick="showTab('hierarchy-tab', this)">🏢 Hierarchy</button>
+    <button class="nav-item" onclick="showTab('events-tab', this)">📅 Events &amp; Price</button>
+    <button class="nav-item" onclick="showTab('series-tab', this)">🔎 Series Explorer</button>
+    <button class="nav-item" onclick="showTab('export-tab', this)">📥 Export</button>
+  </div>
 
-    <div class="navigation">
-
-        <button
-            class="nav-item active"
-            onclick="showTab('forecast-tab', this)"
-        >
-            📈 Forecast
-        </button>
-
-        <button
-            class="nav-item"
-            onclick="showTab('hierarchy-tab', this)"
-        >
-            🏢 Hierarchy
-        </button>
-
-        <button
-            class="nav-item"
-            onclick="showTab('events-tab', this)"
-        >
-            📅 Events & Price
-        </button>
-
-        <button
-            class="nav-item"
-            onclick="showTab('series-tab', this)"
-        >
-            🔎 Series Explorer
-        </button>
-
-        <button
-            class="nav-item"
-            onclick="showTab('export-tab', this)"
-        >
-            📥 Export
-        </button>
-
+  <div class="sidebar-bottom">
+    <div class="sidebar-note">
+      <strong>WRMSSE</strong>
+      <span id="sidebar-wrmsse">—</span>
     </div>
-
-
-    <div class="sidebar-bottom">
-
-        <div class="sidebar-user">
-
-            <div class="user-avatar">
-                👤
-            </div>
-
-            <div>
-
-                <strong id="sidebar-username">
-                    —
-                </strong>
-
-                <span>
-                    Logged in
-                </span>
-
-            </div>
-
-        </div>
-
-
-        <button
-            onclick="logout()"
-            class="sidebar-logout"
-        >
-            Logout
-        </button>
-
-    </div>
-
+  </div>
 </aside>
 
 
-
-<!-- =========================================================
-     MAIN
-========================================================= -->
-
+<!-- ================= MAIN ================= -->
 <main class="main-content">
 
+  <div class="top-header">
+    <div>
+      <h1>Retail Demand Forecasting</h1>
+      <p>Walmart M5 · Hierarchical · 28-day ahead forecasting</p>
+    </div>
+    <div class="header-user">
+      <span id="window-label">—</span>
+    </div>
+  </div>
 
-    <!-- HEADER -->
 
-    <div class="top-header">
+  <!-- ============ OVERVIEW TAB ============ -->
+  <section id="overview-tab" class="tab-content active-tab">
 
-        <div>
+    <section class="hero-panel">
+      <div class="hero-icon">🏪</div>
+      <div>
+        <h2>Walmart M5 Retail Demand Forecasting</h2>
+        <p>
+          This system forecasts daily unit sales for every product in every
+          Walmart store, 28 days into the future. It is built on the M5
+          competition dataset, which covers 5 years of real Walmart sales
+          across three US states.
+        </p>
+        <p>
+          Retailers must balance stockouts against overstocking. Forecasts
+          are produced at the lowest level — item × store — then aggregated
+          upward through all 12 hierarchy levels, so store managers,
+          category planners and executives all read consistent numbers.
+        </p>
+      </div>
+    </section>
 
-            <h1>
-                Retail Demand Forecasting
-            </h1>
+    <div class="stat-grid" id="overview-stats"></div>
 
-            <p>
-                Walmart M5 · Hierarchical ·
-                28-day ahead forecasting
-            </p>
-
+    <div class="two-column">
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div>
+            <h2>🇺🇸 States &amp; Stores</h2>
+            <p>Store network covered by the dataset</p>
+          </div>
         </div>
+        <div id="states-breakdown"></div>
+      </section>
 
-
-        <div class="header-user">
-
-            👤
-            <span id="logged-user">
-                —
-            </span>
-
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div>
+            <h2>🛒 Categories &amp; Departments</h2>
+            <p>Product hierarchy</p>
+          </div>
         </div>
-
+        <div id="category-breakdown"></div>
+      </section>
     </div>
 
-
-
-    <!-- =====================================================
-         FILTERS
-    ====================================================== -->
-
-    <section class="filter-panel">
-
-        <div class="filter-title">
-
-            <h3>
-                🔎 Forecast Filters
-            </h3>
-
-            <span>
-                Select hierarchy level
-            </span>
-
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div>
+          <h2>📦 Forecast Volume by Category</h2>
+          <p>Total predicted units over the next 28 days</p>
         </div>
-
-
-        <div class="filter-grid">
-
-
-            <div class="filter-box">
-
-                <label>
-                    Forecast Window
-                </label>
-
-                <select id="mode-filter">
-
-                    <option value="future">
-                        Future
-                    </option>
-
-                    <option value="validation">
-                        Validation
-                    </option>
-
-                    <option value="evaluation">
-                        Evaluation
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <div class="filter-box">
-
-                <label>
-                    State
-                </label>
-
-                <select id="state-filter">
-
-                    <option value="">
-                        All States
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <div class="filter-box">
-
-                <label>
-                    Store
-                </label>
-
-                <select id="store-filter">
-
-                    <option value="">
-                        All Stores
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <div class="filter-box">
-
-                <label>
-                    Category
-                </label>
-
-                <select id="category-filter">
-
-                    <option value="">
-                        All Categories
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <div class="filter-box">
-
-                <label>
-                    Department
-                </label>
-
-                <select id="department-filter">
-
-                    <option value="">
-                        All Departments
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <div class="filter-box">
-
-                <label>
-                    Item
-                </label>
-
-                <select id="item-filter">
-
-                    <option value="">
-                        All Items
-                    </option>
-
-                </select>
-
-            </div>
-
-        </div>
-
+      </div>
+      <div id="overview-category-chart" class="medium-chart"></div>
     </section>
 
-
-
-    <!-- =====================================================
-         FORECAST TAB
-    ====================================================== -->
-
-    <section
-        id="forecast-tab"
-        class="tab-content active-tab"
-    >
-
-
-        <section class="about-panel">
-
-            <div class="about-icon">
-                🏪
-            </div>
-
-            <div>
-
-                <h2>
-                    About Walmart M5
-                </h2>
-
-                <p>
-                    The M5 forecasting problem focuses on
-                    predicting item-level demand across
-                    Walmart stores.
-                </p>
-
-                <p>
-                    This dashboard supports hierarchical
-                    aggregation, 28-day forecasting and
-                    analysis of external demand factors.
-                </p>
-
-            </div>
-
-        </section>
-
-
-
-        <!-- KPI -->
-
-        <div class="kpi-grid">
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    📦
-                </div>
-
-                <div>
-
-                    <span>
-                        Total Demand
-                    </span>
-
-                    <strong id="total-units">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    📊
-                </div>
-
-                <div>
-
-                    <span>
-                        Average / Day
-                    </span>
-
-                    <strong id="average-units">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    🔢
-                </div>
-
-                <div>
-
-                    <span>
-                        Forecast Series
-                    </span>
-
-                    <strong id="series-count">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    🔥
-                </div>
-
-                <div>
-
-                    <span>
-                        Peak Demand
-                    </span>
-
-                    <strong id="peak-day">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
+    <div class="two-column">
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div>
+            <h2>🗓️ Forecast Windows</h2>
+            <p>Three 28-day windows are available</p>
+          </div>
         </div>
+        <div id="windows-table" class="table-container"></div>
+      </section>
 
-
-
-        <!-- FORECAST GRAPH -->
-
-        <section class="dashboard-card">
-
-            <div class="card-header">
-
-                <div>
-
-                    <h2>
-                        📈 Total Daily Demand —
-                        Next 28 Days
-                    </h2>
-
-                    <p>
-                        Forecasted demand across
-                        selected hierarchy filters.
-                    </p>
-
-                </div>
-
-                <button
-                    onclick="loadForecast()"
-                    class="primary-btn"
-                >
-                    Refresh
-                </button>
-
-            </div>
-
-
-            <div
-                id="forecast-chart"
-                class="large-chart"
-            >
-
-                <div class="chart-placeholder">
-
-                    <span>
-                        📈
-                    </span>
-
-                    Loading forecast...
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-
-        <!-- CATEGORY + STORE -->
-
-        <div class="two-column">
-
-
-            <section class="dashboard-card">
-
-                <div class="card-header">
-
-                    <div>
-
-                        <h2>
-                            By Category
-                        </h2>
-
-                        <p>
-                            Forecast volume by category
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <div
-                    id="category-chart"
-                    class="medium-chart"
-                ></div>
-
-            </section>
-
-
-
-            <section class="dashboard-card">
-
-                <div class="card-header">
-
-                    <div>
-
-                        <h2>
-                            By Store
-                        </h2>
-
-                        <p>
-                            Forecast volume by store
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <div
-                    id="store-chart"
-                    class="medium-chart"
-                ></div>
-
-            </section>
-
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div>
+            <h2>🧠 Model</h2>
+            <p>How the forecasts are produced</p>
+          </div>
         </div>
+        <div id="model-info"></div>
+      </section>
+    </div>
+
+  </section>
 
 
+  <!-- ============ FILTERS (shared) ============ -->
+  <section class="filter-panel" id="filter-panel" style="display:none;">
+    <div class="filter-title">
+      <h3>🔎 Forecast Filters</h3>
+      <span>Select hierarchy level</span>
+    </div>
+    <div class="filter-grid">
+      <div class="filter-box">
+        <label>Forecast Window</label>
+        <select id="mode-filter">
+          
+          <option value="validation">Validation (25 Apr – 22 May 2016)</option>
+          <option value="evaluation">Evaluation (23 May – 19 Jun 2016)</option>
+        </select>
+      </div>
+      <div class="filter-box">
+        <label>State</label>
+        <select id="state-filter"><option value="">All States</option></select>
+      </div>
+      <div class="filter-box">
+        <label>Store</label>
+        <select id="store-filter"><option value="">All Stores</option></select>
+      </div>
+      <div class="filter-box">
+        <label>Category</label>
+        <select id="category-filter"><option value="">All Categories</option></select>
+      </div>
+      <div class="filter-box">
+        <label>Department</label>
+        <select id="department-filter"><option value="">All Departments</option></select>
+      </div>
+      <div class="filter-box">
+        <label>Item <span id="item-count-hint"></span></label>
+        <select id="item-filter"><option value="">All Items</option></select>
+      </div>
+      <div class="filter-box">
+        <label>&nbsp;</label>
+        <button class="secondary-btn" onclick="resetFilters()">Reset</button>
+      </div>
+    </div>
+  </section>
 
-        <!-- TOP ITEMS -->
 
-        <section class="dashboard-card">
+  <!-- ============ FORECAST TAB ============ -->
+  <section id="forecast-tab" class="tab-content">
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon">📦</div>
+        <div><span>Total Demand (28d)</span><strong id="total-units">—</strong></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">📊</div>
+        <div><span>Average / Day</span><strong id="average-units">—</strong></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">🔢</div>
+        <div><span>Forecast Series</span><strong id="series-count">—</strong></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">🔥</div>
+        <div><span>Peak Day</span><strong id="peak-day">—</strong></div>
+      </div>
+    </div>
 
-            <div class="card-header">
-
-                <div>
-
-                    <h2>
-                        Top 20 Items by Forecast Volume
-                    </h2>
-
-                    <p>
-                        Highest forecasted item series
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <div
-                id="top-items"
-                class="table-container"
-            ></div>
-
-        </section>
-
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div>
+          <h2>📈 Total Daily Demand — Next 28 Days</h2>
+          <p id="forecast-subtitle">Forecasted demand across selected filters</p>
+        </div>
+      </div>
+      <div id="forecast-chart" class="large-chart">
+        <div class="chart-placeholder"><span>📈</span>Loading forecast…</div>
+      </div>
     </section>
 
+    <div class="two-column">
+      <section class="dashboard-card">
+        <div class="card-header"><div><h2>By Category</h2><p>Forecast volume</p></div></div>
+        <div id="category-chart" class="medium-chart"></div>
+      </section>
+      <section class="dashboard-card">
+        <div class="card-header"><div><h2>By Store</h2><p>Forecast volume</p></div></div>
+        <div id="store-chart" class="medium-chart"></div>
+      </section>
+    </div>
+
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div><h2>Top 20 Items by Forecast Volume</h2>
+        <p>Highest forecasted item × store series</p></div>
+      </div>
+      <div id="top-items" class="table-container"></div>
+    </section>
+  </section>
 
 
-    <!-- =====================================================
-         HIERARCHY TAB
-    ====================================================== -->
-
-    <section
-        id="hierarchy-tab"
-        class="tab-content"
-    >
-
-        <div class="page-title">
-
-            <h2>
-                🏢 Walmart M5 Hierarchy
-            </h2>
-
-            <p>
-                Explore the hierarchical aggregation
-                structure used for demand forecasting.
-            </p>
-
-        </div>
+  <!-- ============ HIERARCHY TAB ============ -->
+  <section id="hierarchy-tab" class="tab-content">
+    <div class="page-title">
+      <h2>🏢 Hierarchical Aggregation</h2>
+      <p>
+        Forecasts are produced at item × store level and summed upward, so
+        every one of the 12 M5 levels is coherent by construction.
+      </p>
+    </div>
+    <div id="hierarchy-cards" class="hierarchy-grid"></div>
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div><h2>All 12 Aggregation Levels</h2>
+        <p>Series count and top node at each level</p></div>
+      </div>
+      <div id="hierarchy-table" class="table-container"></div>
+    </section>
+  </section>
 
 
-        <div
-            id="hierarchy-cards"
-            class="hierarchy-grid"
-        ></div>
 
 
-        <section class="dashboard-card">
 
-            <div class="card-header">
+  <!-- ============ EVENTS TAB ============ -->
+  <section id="events-tab" class="tab-content">
+    <div class="page-title">
+      <h2>📅 Events &amp; Price</h2>
+      <p>External covariates the model uses: holidays, SNAP benefit days,
+         price and promotion signals.</p>
+    </div>
 
-                <div>
-
-                    <h2>
-                        Hierarchical Aggregation Levels
-                    </h2>
-
-                    <p>
-                        M5 supports multiple aggregation
-                        levels from total demand down to
-                        item-store series.
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <div
-                id="hierarchy-table"
-                class="table-container"
-            ></div>
-
-        </section>
-
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div><h2>Holidays in the Forecast Window</h2>
+        <p>Effect on predicted demand versus a normal day</p></div>
+      </div>
+      <div id="events-table" class="table-container"></div>
     </section>
 
-
-
-    <!-- =====================================================
-         EVENTS & PRICE
-    ====================================================== -->
-
-    <section
-        id="events-tab"
-        class="tab-content"
-    >
-
-        <div class="page-title">
-
-            <h2>
-                📅 Events & Price
-            </h2>
-
-            <p>
-                External covariates that can influence
-                retail demand.
-            </p>
-
+    <div class="two-column">
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div><h2>🍎 SNAP Benefit Days</h2>
+          <p>Food-stamp disbursement lifts grocery demand</p></div>
         </div>
-
-
-        <div class="two-column">
-
-            <div class="dashboard-card">
-
-                <h2>
-                    💰 Price
-                </h2>
-
-                <div
-                    id="price-status"
-                    class="feature-status"
-                >
-                    Checking available data...
-                </div>
-
-            </div>
-
-
-            <div class="dashboard-card">
-
-                <h2>
-                    🎉 Holiday / Event
-                </h2>
-
-                <div
-                    id="holiday-status"
-                    class="feature-status"
-                >
-                    Checking available data...
-                </div>
-
-            </div>
-
+        <div id="snap-table" class="table-container"></div>
+      </section>
+      <section class="dashboard-card">
+        <div class="card-header">
+          <div><h2>📆 Weekly Pattern</h2>
+          <p>Average demand by day of week</p></div>
         </div>
+        <div id="weekly-chart"></div>
+      </section>
+    </div>
 
-
-        <div class="two-column">
-
-            <div class="dashboard-card">
-
-                <h2>
-                    🏷️ Promotion
-                </h2>
-
-                <div
-                    id="promotion-status"
-                    class="feature-status"
-                >
-                    Checking available data...
-                </div>
-
-            </div>
-
-
-            <div class="dashboard-card">
-
-                <h2>
-                    📌 Use Case
-                </h2>
-
-                <p>
-                    Price, promotion and holiday/event
-                    variables are treated as external
-                    covariates when they are available
-                    in the project data.
-                </p>
-
-            </div>
-
-        </div>
-
+    <section class="dashboard-card">
+      <div class="card-header">
+        <div><h2>💰 Price vs Demand</h2>
+        <p>Each dot is one item × store pair</p></div>
+      </div>
+      <div id="price-chart" class="medium-chart"></div>
     </section>
+  </section>
 
 
-
-    <!-- =====================================================
-         SERIES EXPLORER
-    ====================================================== -->
-
-    <section
-        id="series-tab"
-        class="tab-content"
-    >
-
-        <div class="page-title">
-
-            <h2>
-                🔎 Series Explorer
-            </h2>
-
-            <p>
-                Search item/store forecast series.
-            </p>
-
-        </div>
-
-
-        <section class="dashboard-card">
-
-            <div class="series-search">
-
-                <input
-                    id="series-search"
-                    type="text"
-                    placeholder="Search item or store..."
-                >
-
-                <button
-                    onclick="searchSeries()"
-                    class="primary-btn"
-                >
-                    Search
-                </button>
-
-            </div>
-
-
-            <div
-                id="series-results"
-                class="table-container"
-            ></div>
-
-        </section>
-
+  <!-- ============ SERIES TAB ============ -->
+  <section id="series-tab" class="tab-content">
+    <div class="page-title">
+      <h2>🔎 Series Explorer</h2>
+      <p>Search any item, store or category to inspect its forecast.</p>
+    </div>
+    <section class="dashboard-card">
+      <div class="series-search">
+        <input id="series-search" type="text"
+               placeholder="e.g. FOODS_3_090, CA_1, HOBBIES…">
+        <button onclick="searchSeries()" class="primary-btn">Search</button>
+      </div>
+      <div id="series-results" class="table-container"></div>
     </section>
-
-
-
-    <!-- =====================================================
-         EXPORT
-    ====================================================== -->
-
-    <section
-        id="export-tab"
-        class="tab-content"
-    >
-
-        <div class="page-title">
-
-            <h2>
-                📥 Export Forecast
-            </h2>
-
-            <p>
-                Download the currently loaded forecast
-                data as CSV.
-            </p>
-
-        </div>
-
-
-        <section class="dashboard-card export-card">
-
-            <div class="export-icon">
-                📊
-            </div>
-
-            <h2>
-                Export Forecast Data
-            </h2>
-
-            <p>
-                Export the forecast data currently loaded
-                from the FastAPI backend.
-            </p>
-
-            <button
-                onclick="exportForecast()"
-                class="primary-btn"
-            >
-                Download CSV
-            </button>
-
-        </section>
-
+    <section class="dashboard-card" id="series-detail-card" style="display:none;">
+      <div class="card-header">
+        <div><h2 id="series-detail-title">Series detail</h2>
+        <p>Recent history (grey) and 28-day forecast (blue)</p></div>
+      </div>
+      <div id="series-detail-chart" class="large-chart"></div>
     </section>
+  </section>
 
+
+  <!-- ============ EXPORT TAB ============ -->
+  <section id="export-tab" class="tab-content">
+    <div class="page-title">
+      <h2>📥 Export Forecast</h2>
+      <p>Download the current forecast, respecting any filters you set.</p>
+    </div>
+    <section class="dashboard-card export-card">
+      <div class="export-icon">📊</div>
+      <h2>Download Forecast Data</h2>
+      <p id="export-info">Exports the currently selected window and filters.</p>
+      <div class="export-buttons">
+        <button onclick="exportForecast('long')" class="primary-btn">
+          Long format (id, date, forecast)
+        </button>
+        <button onclick="exportForecast('wide')" class="secondary-btn">
+          Wide format (F1…F28, Kaggle style)
+        </button>
+      </div>
+    </section>
+  </section>
 
 </main>
-
 </section>
 
-
 <script src="app.js"></script>
-
 </body>
-
 </html>

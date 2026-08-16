@@ -1,5 +1,8 @@
 # ============================================================
-# M5 RETAIL DEMAND FORECASTING - FASTAPI BACKEND + FRONTEND
+# M5 RETAIL DEMAND FORECASTING - FASTAPI + STATIC FRONTEND
+# ============================================================
+# Build:  docker build -t m5-dashboard .
+# Run:    docker run -p 8000:8000 m5-dashboard
 # ============================================================
 
 FROM python:3.11-slim
@@ -11,7 +14,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Runtime deps only - no lightgbm / scikit-learn / streamlit.
-# Training happens on your laptop; the container just serves results.
+# Training happens on your laptop; the container only serves results.
 COPY requirements-api.txt .
 RUN pip install --no-cache-dir -r requirements-api.txt
 
@@ -19,9 +22,7 @@ COPY backend/   ./backend/
 COPY frontend/  ./frontend/
 COPY web_data/  ./web_data/
 
-# users.db is NOT copied; the app creates it at startup.
-# Set DB_PATH=/var/data/users.db with a Render disk to make it persist.
-
+# Cloud platforms inject $PORT. Default to 8000 for local runs.
 ENV PORT=8000
 EXPOSE 8000
 

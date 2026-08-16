@@ -22,12 +22,12 @@ MODES = {
     "future":     (D_EVAL_END, D_EVAL_END + 1),     # d_1970-1997 = 2016-06-20 -> 2016-07-17
 }
 
-MODE = "future"
+MODE = "validation"
 
 # ------------------------------------------------------------------- resources
 # Keep only the last N days of history as training ROWS (features still look
 # back 1 year). 730 keeps memory ~4 GB. Use None for everything (needs ~16 GB).
-TRAIN_TAIL_DAYS = 400
+TRAIN_TAIL_DAYS = 730
 
 # Restrict to a few stores while you test the pipeline, e.g. ["CA_1", "CA_2"].
 # Set to None to use all 10 stores.
