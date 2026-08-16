@@ -1,2459 +1,623 @@
 // ============================================================
-// M5 RETAIL DEMAND FORECASTING
-// FRONTEND JAVASCRIPT
+// M5 RETAIL DEMAND FORECASTING - FRONTEND
+// ============================================================
+//
+// API_URL is empty on purpose. The browser then calls the same
+// origin it was served from, so this works identically on
+// localhost and on Render. Hardcoding http://127.0.0.1:8000
+// breaks every deployment, because "localhost" means the
+// VISITOR'S machine, not your server.
 // ============================================================
 
-// Use the same server for both frontend and FastAPI.
-// Local: http://127.0.0.1:8000
-// Render: https://your-render-url.onrender.com
-const API_URL = "https://m5-demand-forecasting-api-2.onrender.com";
+const API_URL = "";
 
 let token = localStorage.getItem("m5_token");
-
-let forecastData = [];
-
-
-// ============================================================
-// AUTH HEADERS
-// ============================================================
+let dashboardData = null;
 
 function authHeaders() {
-    return {
-        "Authorization": `Bearer ${token}`
-    };
+    return { "Authorization": `Bearer ${token}` };
 }
 
+function currentMode() {
+    const el = document.getElementById("mode-filter");
+    return el ? el.value : "future";
+}
+
+function filterQuery() {
+    const params = new URLSearchParams();
+    params.set("mode", currentMode());
+    const map = {
+        state: "state-filter",
+        store: "store-filter",
+        category: "category-filter",
+        department: "department-filter",
+        item: "item-filter"
+    };
+    for (const [key, id] of Object.entries(map)) {
+        const v = getValue(id);
+        if (v) params.set(key, v);
+    }
+    return params.toString();
+}
 
 // ============================================================
 // LOGIN
 // ============================================================
 
 async function login() {
-
-    const usernameElement =
-        document.getElementById("username");
-
-    const passwordElement =
-        document.getElementById("password");
-
-    const message =
-        document.getElementById("login-message");
-
-    const username =
-        usernameElement.value.trim();
-
-    const password =
-        passwordElement.value;
-
+    const message = document.getElementById("login-message");
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
     message.textContent = "";
 
     if (!username || !password) {
-        message.textContent =
-            "Please enter username and password.";
+        message.textContent = "Please enter username and password.";
         return;
     }
 
     try {
-
-        const response = await fetch(
-            `${API_URL}/auth/login`,
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify({
-                    username: username,
-                    password: password
-                })
-            }
-        );
-
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
         const data = await response.json();
 
         if (!response.ok) {
-
-            message.textContent =
-                data.detail ||
-                "Invalid username or password.";
-
+            message.textContent = data.detail || "Invalid username or password.";
             return;
         }
 
         token = data.token;
-
-        localStorage.setItem(
-            "m5_token",
-            token
-        );
-
-        showDashboard(
-            data.username
-        );
-
+        localStorage.setItem("m5_token", token);
+        showDashboard(data.username);
     } catch (error) {
-
-        console.error(
-            "Login error:",
-            error
-        );
-
-        message.textContent =
-            "Cannot connect to the server.";
+        console.error("Login error:", error);
+        message.textContent = "Cannot connect to the server.";
     }
 }
 
+// ============================================================
+// REGISTER
+// ============================================================
+
+async function register() {
+    const message = document.getElementById("signup-message");
+    const uEl = document.getElementById("signup-username");
+    const pEl = document.getElementById("signup-password");
+    const cEl = document.getElementById("signup-confirm-password");
+    if (!uEl || !pEl || !cEl || !message) return;
+
+    const username = uEl.value.trim();
+    const password = pEl.value;
+    const confirm = cEl.value;
+    message.style.color = "";
+    message.textContent = "";
+
+    if (!username || !password || !confirm) {
+        message.textContent = "Please fill in all fields.";
+        return;
+    }
+    if (username.length < 3) {
+        message.textContent = "Username must contain at least 3 characters.";
+        return;
+    }
+    if (password.length < 6) {
+        message.textContent = "Password must contain at least 6 characters.";
+        return;
+    }
+    if (password !== confirm) {
+        message.textContent = "Passwords do not match.";
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            message.textContent = data.detail || "Could not create account.";
+            return;
+        }
+
+        message.style.color = "#16a34a";
+        message.textContent = "Account created. Logging you in...";
+        uEl.value = ""; pEl.value = ""; cEl.value = "";
+
+        // log straight in so the user never sees "invalid credentials"
+        document.getElementById("username").value = username;
+        document.getElementById("password").value = password;
+        setTimeout(login, 600);
+    } catch (error) {
+        console.error("Registration error:", error);
+        message.textContent = "Cannot connect to the server.";
+    }
+}
 
 // ============================================================
-// SHOW DASHBOARD
+// SESSION
 // ============================================================
 
 function showDashboard(username) {
-
-    const loginSection =
-        document.getElementById(
-            "login-section"
-        );
-
-    const dashboardSection =
-        document.getElementById(
-            "dashboard-section"
-        );
-
-    if (loginSection) {
-        loginSection.style.display = "none";
-    }
-
-    if (dashboardSection) {
-        dashboardSection.style.display = "flex";
-    }
-
-    const loggedUser =
-        document.getElementById(
-            "logged-user"
-        );
-
-    if (loggedUser) {
-        loggedUser.textContent =
-            username;
-    }
-
-    const sidebarUsername =
-        document.getElementById(
-            "sidebar-username"
-        );
-
-    if (sidebarUsername) {
-        sidebarUsername.textContent =
-            username;
-    }
-
+    const loginSection = document.getElementById("login-section");
+    const dash = document.getElementById("dashboard-section");
+    if (loginSection) loginSection.style.display = "none";
+    if (dash) dash.style.display = "flex";
+    setText("logged-user", username);
+    setText("sidebar-username", username);
     loadDashboard();
 }
 
-
-// ============================================================
-// LOGOUT
-// ============================================================
-
 function logout() {
-
-    localStorage.removeItem(
-        "m5_token"
-    );
-
+    localStorage.removeItem("m5_token");
     token = null;
+    dashboardData = null;
+    const dash = document.getElementById("dashboard-section");
+    const loginSection = document.getElementById("login-section");
+    if (dash) dash.style.display = "none";
+    if (loginSection) loginSection.style.display = "flex";
+}
 
-    forecastData = [];
-
-    const dashboardSection =
-        document.getElementById(
-            "dashboard-section"
-        );
-
-    const loginSection =
-        document.getElementById(
-            "login-section"
-        );
-
-    if (dashboardSection) {
-        dashboardSection.style.display =
-            "none";
-    }
-
-    if (loginSection) {
-        loginSection.style.display =
-            "flex";
+async function checkExistingLogin() {
+    if (!token) return;
+    try {
+        const response = await fetch(`${API_URL}/auth/me`, { headers: authHeaders() });
+        if (!response.ok) {
+            localStorage.removeItem("m5_token");
+            token = null;
+            return;
+        }
+        const data = await response.json();
+        showDashboard(data.username);
+    } catch (error) {
+        console.error("Session check error:", error);
     }
 }
 
-
 // ============================================================
-// LOAD COMPLETE DASHBOARD
+// LOAD DASHBOARD
 // ============================================================
 
 async function loadDashboard() {
-
-    await loadForecast();
-
-    await loadSummary();
-
+    await loadMain();
     await loadMetrics();
-
     await loadHierarchy();
-
     await loadProfile();
 }
 
-
-// ============================================================
-// FORECAST
-// ============================================================
-
-async function loadForecast() {
-
-    if (!token) {
-        return;
-    }
-
-    const modeElement =
-        document.getElementById(
-            "mode-filter"
-        );
-
-    const mode =
-        modeElement
-            ? modeElement.value
-            : "future";
-
+// One call returns every aggregate the UI needs (~3 KB), instead of
+// downloading 853,720 raw rows (~190 MB) and grouping in the browser.
+async function loadMain() {
+    if (!token) return;
     try {
-
-        const response =
-            await fetch(
-                `${API_URL}/forecast?mode=${encodeURIComponent(mode)}`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
+        const response = await fetch(`${API_URL}/dashboard?${filterQuery()}`, {
+            headers: authHeaders()
+        });
+        const data = await response.json();
         if (!response.ok) {
-
-            console.error(
-                "Forecast API error:",
-                data
-            );
-
+            console.error("Dashboard API error:", data);
             return;
         }
 
-        forecastData =
-            data.data || [];
+        dashboardData = data;
 
-        updateGlobalForecastCards(
-            data
-        );
+        setText("total-units", formatNumber(data.total_units));
+        setText("average-units", formatNumber(data.avg_units_per_day));
+        setText("series-count", formatNumber(data.series));
+        setText("peak-day", formatNumber(data.peak_day_units));
 
-        populateFilters(
-            forecastData
-        );
-
-        applyFilters();
-
-    } catch (error) {
-
-        console.error(
-            "Forecast error:",
-            error
-        );
-    }
-}
-
-
-// ============================================================
-// GLOBAL FORECAST CARDS
-// ============================================================
-
-function updateGlobalForecastCards(data) {
-
-    const total =
-        document.getElementById(
-            "total-units"
-        );
-
-    const average =
-        document.getElementById(
-            "average-units"
-        );
-
-    const series =
-        document.getElementById(
-            "series-count"
-        );
-
-    if (total) {
-
-        total.textContent =
-            formatNumber(
-                data.total_units
-            );
-    }
-
-    if (average) {
-
-        average.textContent =
-            formatNumber(
-                data.avg_units_per_day
-            );
-    }
-
-    if (series) {
-
-        series.textContent =
-            formatNumber(
-                data.series
-            );
-    }
-}
-
-
-// ============================================================
-// SUMMARY
-// ============================================================
-
-async function loadSummary() {
-
-    if (!token) {
-        return;
-    }
-
-    const modeElement =
-        document.getElementById(
-            "mode-filter"
-        );
-
-    const mode =
-        modeElement
-            ? modeElement.value
-            : "future";
-
-    try {
-
-        const response =
-            await fetch(
-                `${API_URL}/forecast/summary?mode=${encodeURIComponent(mode)}`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            console.error(
-                "Summary API error:",
-                data
-            );
-
-            return;
+        if (data.filters) {
+            populateSelect("state-filter", data.filters.states);
+            populateSelect("store-filter", data.filters.stores);
+            populateSelect("category-filter", data.filters.categories);
+            populateSelect("department-filter", data.filters.departments);
         }
 
-        const peak =
-            document.getElementById(
-                "peak-day"
-            );
-
-        if (peak) {
-
-            peak.textContent =
-                formatNumber(
-                    data.peak_day_units
-                );
-        }
-
+        createForecastChart(data.daily || []);
+        renderBars(document.getElementById("category-chart"), data.by_category || []);
+        renderBars(document.getElementById("store-chart"), data.by_store || []);
+        createTopItemsTable(data.top_items || []);
     } catch (error) {
-
-        console.error(
-            "Summary error:",
-            error
-        );
+        console.error("Dashboard error:", error);
     }
 }
-
-
-// ============================================================
-// METRICS
-// ============================================================
 
 async function loadMetrics() {
-
-    if (!token) {
-        return;
-    }
-
+    if (!token) return;
     try {
-
-        const response =
-            await fetch(
-                `${API_URL}/metrics?mode=validation`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            console.error(
-                "Metrics API error:",
-                data
-            );
-
-            return;
-        }
-
-        const metrics =
-            data.metrics || {};
-
-        setText(
-            "wrmsse",
-            formatNumber(
-                metrics.wrmsse
-            )
-        );
-
-        setText(
-            "rmse",
-            formatNumber(
-                metrics.rmse
-            )
-        );
-
-        setText(
-            "mae",
-            formatNumber(
-                metrics.mae
-            )
-        );
-
-        setText(
-            "mape",
-            formatNumber(
-                metrics.mape
-            )
-        );
-
+        const response = await fetch(`${API_URL}/metrics?mode=validation`, {
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) return;
+        const m = data.metrics || {};
+        setText("wrmsse", formatNumber(m.wrmsse));
+        setText("rmse", formatNumber(m.rmse));
+        setText("mae", formatNumber(m.mae));
+        setText("mape", formatNumber(m.mape));
     } catch (error) {
-
-        console.error(
-            "Metrics error:",
-            error
-        );
+        console.error("Metrics error:", error);
     }
 }
-
-
-// ============================================================
-// HIERARCHY
-// ============================================================
 
 async function loadHierarchy() {
-
-    if (!token) {
-        return;
-    }
-
+    if (!token) return;
     try {
-
-        const response =
-            await fetch(
-                `${API_URL}/hierarchy`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            console.error(
-                "Hierarchy API error:",
-                data
-            );
-
-            return;
-        }
-
-        createHierarchyCards(
-            data
-        );
-
+        const response = await fetch(`${API_URL}/hierarchy?mode=${currentMode()}`, {
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) return;
+        createHierarchyCards(data);
         await loadHierarchySummary();
-
     } catch (error) {
-
-        console.error(
-            "Hierarchy error:",
-            error
-        );
+        console.error("Hierarchy error:", error);
     }
 }
-
-
-// ============================================================
-// HIERARCHY CARDS
-// ============================================================
-
-function createHierarchyCards(data) {
-
-    const container =
-        document.getElementById(
-            "hierarchy-cards"
-        );
-
-    if (!container) {
-        return;
-    }
-
-    const cards = [
-
-        {
-            icon: "🇺🇸",
-            title: "States",
-            values:
-                data.states || []
-        },
-
-        {
-            icon: "🏪",
-            title: "Stores",
-            values:
-                data.stores || []
-        },
-
-        {
-            icon: "🛒",
-            title: "Categories",
-            values:
-                data.categories || []
-        },
-
-        {
-            icon: "🏷️",
-            title: "Departments",
-            values:
-                data.departments || []
-        }
-    ];
-
-    container.innerHTML =
-        cards.map(
-            card => `
-
-                <div class="hierarchy-card">
-
-                    <div class="icon">
-                        ${card.icon}
-                    </div>
-
-                    <h3>
-                        ${escapeHTML(
-                            card.title
-                        )}
-                    </h3>
-
-                    <p>
-                        ${
-                            card.values.length
-                            ? card.values
-                                .slice(0, 12)
-                                .map(
-                                    value =>
-                                        escapeHTML(
-                                            String(value)
-                                        )
-                                )
-                                .join(" · ")
-                            : "No data available"
-                        }
-                    </p>
-
-                    <strong>
-                        ${card.values.length}
-                        ${
-                            card.values.length === 1
-                            ? "value"
-                            : "values"
-                        }
-                    </strong>
-
-                </div>
-
-            `
-        ).join("");
-}
-
-
-// ============================================================
-// HIERARCHY SUMMARY
-// ============================================================
 
 async function loadHierarchySummary() {
-
-    if (!token) {
-        return;
-    }
-
     try {
-
-        const response =
-            await fetch(
-                `${API_URL}/hierarchy/summary`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            console.error(
-                "Hierarchy summary error:",
-                data
-            );
-
-            return;
-        }
-
-        const container =
-            document.getElementById(
-                "hierarchy-table"
-            );
-
-        if (!container) {
-            return;
-        }
-
-        let html = `
-
-            <table>
-
-                <thead>
-
-                    <tr>
-
-                        <th>
-                            Level
-                        </th>
-
-                        <th>
-                            Dimensions
-                        </th>
-
-                        <th>
-                            Series / Groups
-                        </th>
-
-                        <th>
-                            Top Forecast
-                        </th>
-
-                    </tr>
-
-                </thead>
-
-                <tbody>
-        `;
-
-        (data.levels || [])
-            .forEach(
-                level => {
-
-                    const top =
-                        level.data &&
-                        level.data.length
-                        ? level.data[0].forecast
-                        : undefined;
-
-                    html += `
-
-                        <tr>
-
-                            <td>
-                                <strong>
-                                    ${escapeHTML(
-                                        level.level
-                                    )}
-                                </strong>
-                            </td>
-
-                            <td>
-                                ${
-                                    level.columns &&
-                                    level.columns.length
-                                    ? level.columns
-                                        .map(
-                                            column =>
-                                                escapeHTML(
-                                                    String(column)
-                                                )
-                                        )
-                                        .join(" × ")
-                                    : "All"
-                                }
-                            </td>
-
-                            <td>
-                                ${formatNumber(
-                                    level.count
-                                )}
-                            </td>
-
-                            <td>
-                                ${
-                                    top !== undefined
-                                    ? formatNumber(
-                                        top
-                                    )
-                                    : "—"
-                                }
-                            </td>
-
-                        </tr>
-                    `;
-                }
-            );
-
-        html += `
-
-                </tbody>
-
-            </table>
-        `;
-
-        container.innerHTML =
-            html;
-
-    } catch (error) {
-
-        console.error(
-            "Hierarchy summary error:",
-            error
+        const response = await fetch(
+            `${API_URL}/hierarchy/summary?mode=${currentMode()}`,
+            { headers: authHeaders() }
         );
+        const data = await response.json();
+        if (!response.ok) return;
+
+        const container = document.getElementById("hierarchy-table");
+        if (!container) return;
+
+        let html = `<table><thead><tr>
+            <th>Level</th><th>Dimensions</th>
+            <th>Series / Groups</th><th>Top Forecast</th>
+        </tr></thead><tbody>`;
+
+        (data.levels || []).forEach(level => {
+            const top = level.data && level.data.length
+                ? level.data[0].forecast : undefined;
+            html += `<tr>
+                <td><strong>${escapeHTML(level.level)}</strong></td>
+                <td>${level.columns && level.columns.length
+                    ? level.columns.map(c => escapeHTML(String(c))).join(" × ")
+                    : "All"}</td>
+                <td>${formatNumber(level.count)}</td>
+                <td>${top !== undefined ? formatNumber(top) : "—"}</td>
+            </tr>`;
+        });
+
+        container.innerHTML = html + "</tbody></table>";
+    } catch (error) {
+        console.error("Hierarchy summary error:", error);
     }
 }
-
-
-// ============================================================
-// DATA PROFILE
-// ============================================================
 
 async function loadProfile() {
-
-    if (!token) {
-        return;
-    }
-
+    if (!token) return;
     try {
-
-        const response =
-            await fetch(
-                `${API_URL}/data-profile`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            console.error(
-                "Profile API error:",
-                data
-            );
-
-            return;
-        }
-
-        const features =
-            data.profile &&
-            data.profile.external_features
-            ? data.profile.external_features
-            : {};
-
-        setText(
-            "price-status",
-            features.price
+        const response = await fetch(`${API_URL}/data-profile?mode=${currentMode()}`, {
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) return;
+        const f = (data.profile && data.profile.external_features) || {};
+        setText("price-status", f.price
             ? "Price information is available in the forecast data."
-            : "Price information is not available in the current forecast data."
-        );
-
-        setText(
-            "promotion-status",
-            features.promotion
+            : "Price is used as a model feature but is not present in the exported forecast table.");
+        setText("promotion-status", f.promotion
             ? "Promotion information is available."
-            : "Promotion information is not available in the current forecast data."
-        );
-
-        setText(
-            "holiday-status",
-            features.holiday
+            : "Promotion is captured via price-relative features during training.");
+        setText("holiday-status", f.holiday
             ? "Holiday/event information is available."
-            : "Holiday/event information is not available in the current forecast data."
-        );
-
+            : "Holiday and SNAP events are used during training as model features.");
     } catch (error) {
-
-        console.error(
-            "Profile error:",
-            error
-        );
+        console.error("Profile error:", error);
     }
 }
-
 
 // ============================================================
 // FILTERS
 // ============================================================
 
-function populateFilters(rows) {
-
-    populateSelect(
-        "state-filter",
-        rows.map(
-            row => row.state_id
-        )
-    );
-
-    populateSelect(
-        "store-filter",
-        rows.map(
-            row => row.store_id
-        )
-    );
-
-    populateSelect(
-        "category-filter",
-        rows.map(
-            row => row.cat_id
-        )
-    );
-
-    populateSelect(
-        "department-filter",
-        rows.map(
-            row => row.dept_id
-        )
-    );
-
-    populateSelect(
-        "item-filter",
-        rows.map(
-            row => row.id
-        )
-    );
+function populateSelect(id, values) {
+    const select = document.getElementById(id);
+    if (!select || !values) return;
+    const current = select.value;
+    const first = select.options[0] ? select.options[0].outerHTML : "";
+    select.innerHTML = first;
+    values.forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+    });
+    if (values.some(v => String(v) === String(current))) select.value = current;
 }
 
-
-function populateSelect(
-    id,
-    values
-) {
-
-    const select =
-        document.getElementById(id);
-
-    if (!select) {
-        return;
-    }
-
-    const current =
-        select.value;
-
-    const unique = [
-        ...new Set(
-            values.filter(
-                value =>
-                    value !== null &&
-                    value !== undefined &&
-                    value !== ""
-            )
-        )
-    ].sort(
-        (a, b) =>
-            String(a).localeCompare(
-                String(b)
-            )
-    );
-
-    const first =
-        select.options[0]
-            ? select.options[0].outerHTML
-            : "";
-
-    select.innerHTML =
-        first;
-
-    unique.forEach(
-        value => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-            option.value =
-                value;
-
-            option.textContent =
-                value;
-
-            select.appendChild(
-                option
-            );
-        }
-    );
-
-    if (
-        unique.some(
-            value =>
-                String(value) ===
-                String(current)
-        )
-    ) {
-
-        select.value =
-            current;
-    }
+// Filtering now happens server-side: just refetch.
+async function applyFilters() {
+    await loadMain();
 }
 
-
 // ============================================================
-// APPLY FILTERS
-// ============================================================
-
-function applyFilters() {
-
-    let filtered =
-        [...forecastData];
-
-    const state =
-        getValue("state-filter");
-
-    const store =
-        getValue("store-filter");
-
-    const category =
-        getValue("category-filter");
-
-    const department =
-        getValue("department-filter");
-
-    const item =
-        getValue("item-filter");
-
-
-    if (state) {
-
-        filtered =
-            filtered.filter(
-                row =>
-                    String(
-                        row.state_id
-                    ) === String(state)
-            );
-    }
-
-
-    if (store) {
-
-        filtered =
-            filtered.filter(
-                row =>
-                    String(
-                        row.store_id
-                    ) === String(store)
-            );
-    }
-
-
-    if (category) {
-
-        filtered =
-            filtered.filter(
-                row =>
-                    String(
-                        row.cat_id
-                    ) === String(category)
-            );
-    }
-
-
-    if (department) {
-
-        filtered =
-            filtered.filter(
-                row =>
-                    String(
-                        row.dept_id
-                    ) === String(department)
-            );
-    }
-
-
-    if (item) {
-
-        filtered =
-            filtered.filter(
-                row =>
-                    String(
-                        row.id
-                    ) === String(item)
-            );
-    }
-
-
-    const total =
-        filtered.reduce(
-            (
-                sum,
-                row
-            ) =>
-                sum +
-                (
-                    Number(
-                        row.forecast
-                    ) || 0
-                ),
-            0
-        );
-
-
-    const daily =
-        aggregateByDate(
-            filtered
-        );
-
-    const dates =
-        Object.keys(
-            daily
-        ).sort();
-
-
-    setText(
-        "total-units",
-        formatNumber(total)
-    );
-
-
-    setText(
-        "average-units",
-        formatNumber(
-            dates.length
-            ? total / dates.length
-            : 0
-        )
-    );
-
-
-    const seriesSet =
-        new Set(
-            filtered
-                .map(
-                    row => row.id
-                )
-                .filter(
-                    value =>
-                        value !== null &&
-                        value !== undefined
-                )
-        );
-
-
-    setText(
-        "series-count",
-        formatNumber(
-            seriesSet.size
-        )
-    );
-
-
-    const peak =
-        dates.length
-        ? Math.max(
-            ...Object.values(
-                daily
-            )
-        )
-        : 0;
-
-
-    setText(
-        "peak-day",
-        formatNumber(
-            peak
-        )
-    );
-
-
-    createForecastChart(
-        filtered
-    );
-
-
-    createCategoryChart(
-        filtered
-    );
-
-
-    createStoreChart(
-        filtered
-    );
-
-
-    createTopItemsTable(
-        filtered
-    );
-}
-
-
-// ============================================================
-// DAILY AGGREGATION
+// CHARTS
 // ============================================================
 
-function aggregateByDate(rows) {
+function createForecastChart(daily) {
+    const container = document.getElementById("forecast-chart");
+    if (!container) return;
 
-    const result = {};
-
-    rows.forEach(
-        row => {
-
-            if (!row.date) {
-                return;
-            }
-
-            const date =
-                String(
-                    row.date
-                ).substring(
-                    0,
-                    10
-                );
-
-            const value =
-                Number(
-                    row.forecast
-                ) || 0;
-
-            result[date] =
-                (
-                    result[date] || 0
-                ) + value;
-        }
-    );
-
-    return result;
-}
-
-
-// ============================================================
-// FORECAST LINE CHART
-// ============================================================
-
-function createForecastChart(rows) {
-
-    const container =
-        document.getElementById(
-            "forecast-chart"
-        );
-
-    if (!container) {
-        return;
-    }
-
-    const daily =
-        aggregateByDate(
-            rows
-        );
-
-    const dates =
-        Object.keys(
-            daily
-        ).sort();
+    const dates = daily.map(d => String(d.date).substring(0, 10));
+    const values = daily.map(d => Number(d.forecast) || 0);
 
     if (!dates.length) {
-
-        container.innerHTML = `
-            <div class="chart-placeholder">
-                <span>📈</span>
-                No forecast data available.
-            </div>
-        `;
-
-        return;
-    }
-
-    const values =
-        dates.map(
-            date =>
-                daily[date]
-        );
-
-
-    const width = 1100;
-    const height = 420;
-
-    const leftPad = 80;
-    const rightPad = 35;
-    const topPad = 35;
-    const bottomPad = 70;
-
-
-    const usableWidth =
-        width -
-        leftPad -
-        rightPad;
-
-    const usableHeight =
-        height -
-        topPad -
-        bottomPad;
-
-
-    const max =
-        Math.max(
-            ...values
-        );
-
-    const min =
-        Math.min(
-            ...values
-        );
-
-
-    const range =
-        Math.max(
-            max - min,
-            1
-        );
-
-
-    const points =
-        values.map(
-            (
-                value,
-                index
-            ) => {
-
-                const x =
-                    leftPad +
-                    (
-                        index /
-                        Math.max(
-                            dates.length - 1,
-                            1
-                        )
-                    ) *
-                    usableWidth;
-
-                const y =
-                    topPad +
-                    usableHeight -
-                    (
-                        (
-                            value - min
-                        ) /
-                        range
-                    ) *
-                    usableHeight;
-
-                return {
-                    x,
-                    y
-                };
-            }
-        );
-
-
-    const polyline =
-        points
-            .map(
-                point =>
-                    `${point.x},${point.y}`
-            )
-            .join(" ");
-
-
-    // --------------------------------------------------------
-    // GRID LINES
-    // --------------------------------------------------------
-
-    let gridLines = "";
-
-    const gridCount = 5;
-
-    for (
-        let i = 0;
-        i <= gridCount;
-        i++
-    ) {
-
-        const ratio =
-            i / gridCount;
-
-        const y =
-            topPad +
-            usableHeight -
-            ratio *
-            usableHeight;
-
-        const value =
-            min +
-            ratio *
-            range;
-
-        gridLines += `
-
-            <line
-                x1="${leftPad}"
-                y1="${y}"
-                x2="${width - rightPad}"
-                y2="${y}"
-                stroke="#e5e7eb"
-                stroke-width="1"
-            />
-
-            <text
-                x="${leftPad - 10}"
-                y="${y + 4}"
-                text-anchor="end"
-                font-size="12"
-                fill="#667085"
-            >
-                ${formatNumber(value)}
-            </text>
-        `;
-    }
-
-
-    // --------------------------------------------------------
-    // X AXIS LABELS
-    // --------------------------------------------------------
-
-    let xLabels = "";
-
-    points.forEach(
-        (
-            point,
-            index
-        ) => {
-
-            if (
-                index !== 0 &&
-                index !== points.length - 1 &&
-                index % 4 !== 0
-            ) {
-                return;
-            }
-
-            xLabels += `
-
-                <text
-                    x="${point.x}"
-                    y="${height - 30}"
-                    text-anchor="middle"
-                    font-size="12"
-                    fill="#667085"
-                >
-                    ${dates[index]}
-                </text>
-            `;
-        }
-    );
-
-
-    // --------------------------------------------------------
-    // DATA POINTS
-    // --------------------------------------------------------
-
-    const circles =
-        points
-            .map(
-                (
-                    point,
-                    index
-                ) => `
-
-                    <circle
-                        cx="${point.x}"
-                        cy="${point.y}"
-                        r="5"
-                        fill="#3264d6"
-                        stroke="white"
-                        stroke-width="2"
-                    >
-
-                        <title>
-                            Date: ${dates[index]}
-                            | Units: ${formatNumber(
-                                values[index]
-                            )}
-                        </title>
-
-                    </circle>
-                `
-            )
-            .join("");
-
-
-    // --------------------------------------------------------
-    // SVG
-    // --------------------------------------------------------
-
-    container.innerHTML = `
-
-        <svg
-            viewBox="
-                0 0
-                ${width}
-                ${height}
-            "
-            width="100%"
-            height="420"
-            role="img"
-            aria-label="28-day demand forecast chart"
-        >
-
-            <!-- GRID -->
-
-            ${gridLines}
-
-
-            <!-- Y AXIS -->
-
-            <line
-                x1="${leftPad}"
-                y1="${topPad}"
-                x2="${leftPad}"
-                y2="${height - bottomPad}"
-                stroke="#98a2b3"
-                stroke-width="1.5"
-            />
-
-
-            <!-- X AXIS -->
-
-            <line
-                x1="${leftPad}"
-                y1="${height - bottomPad}"
-                x2="${width - rightPad}"
-                y2="${height - bottomPad}"
-                stroke="#98a2b3"
-                stroke-width="1.5"
-            />
-
-
-            <!-- FORECAST LINE -->
-
-            <polyline
-                points="${polyline}"
-                fill="none"
-                stroke="#3264d6"
-                stroke-width="4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            />
-
-
-            <!-- POINTS -->
-
-            ${circles}
-
-
-            <!-- X AXIS TITLE -->
-
-            <text
-                x="${width / 2}"
-                y="${height - 5}"
-                text-anchor="middle"
-                font-size="14"
-                font-weight="600"
-                fill="#344054"
-            >
-                Date
-            </text>
-
-
-            <!-- Y AXIS TITLE -->
-
-            <text
-                x="18"
-                y="${height / 2}"
-                text-anchor="middle"
-                font-size="14"
-                font-weight="600"
-                fill="#344054"
-                transform="
-                    rotate(
-                        -90
-                        18
-                        ${height / 2}
-                    )
-                "
-            >
-                Forecasted Units
-            </text>
-
-        </svg>
-    `;
-}
-
-
-// ============================================================
-// CATEGORY CHART
-// ============================================================
-
-function createCategoryChart(rows) {
-
-    const container =
-        document.getElementById(
-            "category-chart"
-        );
-
-    if (!container) {
-        return;
-    }
-
-    const groups = {};
-
-    rows.forEach(
-        row => {
-
-            const category =
-                row.cat_id ||
-                "Unknown";
-
-            groups[category] =
-                (
-                    groups[category] || 0
-                ) +
-                (
-                    Number(
-                        row.forecast
-                    ) || 0
-                );
-        }
-    );
-
-    renderBars(
-        container,
-        groups
-    );
-}
-
-
-// ============================================================
-// STORE CHART
-// ============================================================
-
-function createStoreChart(rows) {
-
-    const container =
-        document.getElementById(
-            "store-chart"
-        );
-
-    if (!container) {
-        return;
-    }
-
-    const groups = {};
-
-    rows.forEach(
-        row => {
-
-            const store =
-                row.store_id ||
-                "Unknown";
-
-            groups[store] =
-                (
-                    groups[store] || 0
-                ) +
-                (
-                    Number(
-                        row.forecast
-                    ) || 0
-                );
-        }
-    );
-
-    renderBars(
-        container,
-        groups
-    );
-}
-
-
-// ============================================================
-// BAR RENDERER
-// ============================================================
-
-function renderBars(
-    container,
-    groups
-) {
-
-    const entries =
-        Object.entries(
-            groups
-        )
-        .sort(
-            (
-                a,
-                b
-            ) =>
-                b[1] - a[1]
-        )
-        .slice(
-            0,
-            10
-        );
-
-
-    if (!entries.length) {
-
-        container.innerHTML = `
-            <div class="chart-placeholder">
-                No data available.
-            </div>
-        `;
-
-        return;
-    }
-
-
-    const max =
-        entries[0][1];
-
-
-    let html = "";
-
-
-    entries.forEach(
-        entry => {
-
-            const name =
-                entry[0];
-
-            const value =
-                entry[1];
-
-            const width =
-                max > 0
-                ? (
-                    value / max
-                ) * 100
-                : 0;
-
-
-            html += `
-
-                <div
-                    style="
-                        margin-bottom:16px;
-                    "
-                >
-
-                    <div
-                        style="
-                            display:flex;
-                            justify-content:space-between;
-                            margin-bottom:6px;
-                            font-size:13px;
-                        "
-                    >
-
-                        <span>
-                            ${escapeHTML(
-                                String(name)
-                            )}
-                        </span>
-
-                        <strong>
-                            ${formatNumber(
-                                value
-                            )}
-                        </strong>
-
-                    </div>
-
-
-                    <div
-                        style="
-                            height:10px;
-                            background:#edf1f7;
-                            border-radius:10px;
-                            overflow:hidden;
-                        "
-                    >
-
-                        <div
-                            style="
-                                width:${width}%;
-                                height:100%;
-                                background:#3264d6;
-                                border-radius:10px;
-                            "
-                        ></div>
-
-                    </div>
-
-                </div>
-            `;
-        }
-    );
-
-
-    container.innerHTML =
-        html;
-}
-
-
-// ============================================================
-// TOP ITEMS
-// ============================================================
-
-function createTopItemsTable(rows) {
-
-    const container =
-        document.getElementById(
-            "top-items"
-        );
-
-    if (!container) {
-        return;
-    }
-
-    const groups = {};
-
-
-    rows.forEach(
-        row => {
-
-            const id =
-                row.id ||
-                "Unknown";
-
-            groups[id] =
-                (
-                    groups[id] || 0
-                ) +
-                (
-                    Number(
-                        row.forecast
-                    ) || 0
-                );
-        }
-    );
-
-
-    const top =
-        Object.entries(
-            groups
-        )
-        .sort(
-            (
-                a,
-                b
-            ) =>
-                b[1] - a[1]
-        )
-        .slice(
-            0,
-            20
-        );
-
-
-    if (!top.length) {
-
         container.innerHTML =
-            "<p>No forecast items available.</p>";
-
+            `<div class="chart-placeholder"><span>📈</span>No forecast data available.</div>`;
         return;
     }
 
+    const width = 1100, height = 420;
+    const leftPad = 80, rightPad = 35, topPad = 35, bottomPad = 70;
+    const uw = width - leftPad - rightPad;
+    const uh = height - topPad - bottomPad;
+    const max = Math.max(...values), min = Math.min(...values);
+    const range = Math.max(max - min, 1);
 
-    let html = `
+    const points = values.map((value, i) => ({
+        x: leftPad + (i / Math.max(dates.length - 1, 1)) * uw,
+        y: topPad + uh - ((value - min) / range) * uh
+    }));
 
-        <table>
+    let grid = "";
+    for (let i = 0; i <= 5; i++) {
+        const ratio = i / 5;
+        const y = topPad + uh - ratio * uh;
+        grid += `<line x1="${leftPad}" y1="${y}" x2="${width - rightPad}" y2="${y}"
+                 stroke="#e5e7eb" stroke-width="1"/>
+                 <text x="${leftPad - 10}" y="${y + 4}" text-anchor="end"
+                 font-size="12" fill="#667085">${formatNumber(min + ratio * range)}</text>`;
+    }
 
-            <thead>
+    let labels = "";
+    points.forEach((p, i) => {
+        if (i !== 0 && i !== points.length - 1 && i % 4 !== 0) return;
+        labels += `<text x="${p.x}" y="${height - 30}" text-anchor="middle"
+                   font-size="12" fill="#667085">${dates[i]}</text>`;
+    });
 
-                <tr>
+    const circles = points.map((p, i) =>
+        `<circle cx="${p.x}" cy="${p.y}" r="5" fill="#3264d6" stroke="white"
+         stroke-width="2"><title>${dates[i]} — ${formatNumber(values[i])} units</title></circle>`
+    ).join("");
 
-                    <th>
-                        #
-                    </th>
+    container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="100%" height="420">
+        ${grid}
+        <line x1="${leftPad}" y1="${topPad}" x2="${leftPad}" y2="${height - bottomPad}"
+              stroke="#98a2b3" stroke-width="1.5"/>
+        <line x1="${leftPad}" y1="${height - bottomPad}" x2="${width - rightPad}"
+              y2="${height - bottomPad}" stroke="#98a2b3" stroke-width="1.5"/>
+        <polyline points="${points.map(p => `${p.x},${p.y}`).join(" ")}" fill="none"
+              stroke="#3264d6" stroke-width="4" stroke-linecap="round"
+              stroke-linejoin="round"/>
+        ${circles}${labels}
+        <text x="${width / 2}" y="${height - 5}" text-anchor="middle" font-size="14"
+              font-weight="600" fill="#344054">Date</text>
+        <text x="18" y="${height / 2}" text-anchor="middle" font-size="14"
+              font-weight="600" fill="#344054"
+              transform="rotate(-90 18 ${height / 2})">Forecasted Units</text>
+    </svg>`;
+}
 
-                    <th>
-                        Item
-                    </th>
+function renderBars(container, rows) {
+    if (!container) return;
+    if (!rows.length) {
+        container.innerHTML = `<div class="chart-placeholder">No data available.</div>`;
+        return;
+    }
+    const entries = rows.slice(0, 10);
+    const max = Math.max(...entries.map(e => Number(e.forecast) || 0));
+    container.innerHTML = entries.map(e => {
+        const value = Number(e.forecast) || 0;
+        const width = max > 0 ? (value / max) * 100 : 0;
+        return `<div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;
+                        margin-bottom:6px;font-size:13px;">
+                <span>${escapeHTML(String(e.name))}</span>
+                <strong>${formatNumber(value)}</strong>
+            </div>
+            <div style="height:10px;background:#edf1f7;border-radius:10px;overflow:hidden;">
+                <div style="width:${width}%;height:100%;background:#3264d6;
+                            border-radius:10px;"></div>
+            </div>
+        </div>`;
+    }).join("");
+}
 
-                    <th>
-                        Forecast
-                    </th>
+function createHierarchyCards(data) {
+    const container = document.getElementById("hierarchy-cards");
+    if (!container) return;
+    const cards = [
+        { icon: "🇺🇸", title: "States", values: data.states || [] },
+        { icon: "🏪", title: "Stores", values: data.stores || [] },
+        { icon: "🛒", title: "Categories", values: data.categories || [] },
+        { icon: "🏷️", title: "Departments", values: data.departments || [] }
+    ];
+    container.innerHTML = cards.map(card => `
+        <div class="hierarchy-card">
+            <div class="icon">${card.icon}</div>
+            <h3>${escapeHTML(card.title)}</h3>
+            <p>${card.values.length
+                ? card.values.slice(0, 12).map(v => escapeHTML(String(v))).join(" · ")
+                : "No data available"}</p>
+            <strong>${card.values.length} ${card.values.length === 1 ? "value" : "values"}</strong>
+        </div>`).join("");
+}
 
-                </tr>
+function createTopItemsTable(items) {
+    const container = document.getElementById("top-items");
+    if (!container) return;
+    if (!items.length) {
+        container.innerHTML = "<p>No forecast items available.</p>";
+        return;
+    }
+    let html = `<table><thead><tr><th>#</th><th>Item</th><th>Forecast</th></tr></thead><tbody>`;
+    items.forEach((item, i) => {
+        html += `<tr><td>${i + 1}</td>
+                 <td>${escapeHTML(String(item.id))}</td>
+                 <td>${formatNumber(item.forecast)}</td></tr>`;
+    });
+    container.innerHTML = html + "</tbody></table>";
+}
 
-            </thead>
+// ============================================================
+// SERIES SEARCH  (server-side)
+// ============================================================
 
-            <tbody>
-    `;
+async function searchSeries() {
+    const input = document.getElementById("series-search");
+    const container = document.getElementById("series-results");
+    if (!input || !container) return;
 
-
-    top.forEach(
-        (
-            item,
-            index
-        ) => {
-
-            html += `
-
-                <tr>
-
-                    <td>
-                        ${index + 1}
-                    </td>
-
-                    <td>
-                        ${escapeHTML(
-                            String(
-                                item[0]
-                            )
-                        )}
-                    </td>
-
-                    <td>
-                        ${formatNumber(
-                            item[1]
-                        )}
-                    </td>
-
-                </tr>
-            `;
+    container.innerHTML = "<p>Searching...</p>";
+    try {
+        const response = await fetch(
+            `${API_URL}/series/search?q=${encodeURIComponent(input.value.trim())}` +
+            `&mode=${currentMode()}`,
+            { headers: authHeaders() }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+            container.innerHTML = "<p>Search failed.</p>";
+            return;
         }
-    );
-
-
-    html += `
-
-            </tbody>
-
-        </table>
-    `;
-
-
-    container.innerHTML =
-        html;
-}
-
-
-// ============================================================
-// TAB SWITCH
-// ============================================================
-
-function showTab(
-    tabId,
-    button
-) {
-
-    document
-        .querySelectorAll(
-            ".tab-content"
-        )
-        .forEach(
-            tab =>
-                tab.classList.remove(
-                    "active-tab"
-                )
-        );
-
-
-    const tab =
-        document.getElementById(
-            tabId
-        );
-
-
-    if (tab) {
-
-        tab.classList.add(
-            "active-tab"
-        );
-    }
-
-
-    document
-        .querySelectorAll(
-            ".nav-item"
-        )
-        .forEach(
-            item =>
-                item.classList.remove(
-                    "active"
-                )
-        );
-
-
-    if (button) {
-
-        button.classList.add(
-            "active"
-        );
-    }
-}
-
-
-// ============================================================
-// SERIES SEARCH
-// ============================================================
-
-function searchSeries() {
-
-    const input =
-        document.getElementById(
-            "series-search"
-        );
-
-    const container =
-        document.getElementById(
-            "series-results"
-        );
-
-    if (!input || !container) {
-        return;
-    }
-
-
-    const query =
-        input.value
-            .trim()
-            .toLowerCase();
-
-
-    const results =
-        forecastData
-            .filter(
-                row => {
-
-                    const id =
-                        String(
-                            row.id || ""
-                        )
-                        .toLowerCase();
-
-
-                    const store =
-                        String(
-                            row.store_id || ""
-                        )
-                        .toLowerCase();
-
-
-                    const state =
-                        String(
-                            row.state_id || ""
-                        )
-                        .toLowerCase();
-
-
-                    const category =
-                        String(
-                            row.cat_id || ""
-                        )
-                        .toLowerCase();
-
-
-                    return (
-                        id.includes(query) ||
-                        store.includes(query) ||
-                        state.includes(query) ||
-                        category.includes(query)
-                    );
-                }
-            )
-            .slice(
-                0,
-                100
-            );
-
-
-    if (!results.length) {
-
-        container.innerHTML =
-            "<p>No matching series found.</p>";
-
-        return;
-    }
-
-
-    let html = `
-
-        <table>
-
-            <thead>
-
-                <tr>
-
-                    <th>
-                        Series
-                    </th>
-
-                    <th>
-                        Store
-                    </th>
-
-                    <th>
-                        Date
-                    </th>
-
-                    <th>
-                        Forecast
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-    `;
-
-
-    results.forEach(
-        row => {
-
-            html += `
-
-                <tr>
-
-                    <td>
-                        ${escapeHTML(
-                            String(
-                                row.id || "—"
-                            )
-                        )}
-                    </td>
-
-                    <td>
-                        ${escapeHTML(
-                            String(
-                                row.store_id || "—"
-                            )
-                        )}
-                    </td>
-
-                    <td>
-                        ${escapeHTML(
-                            String(
-                                row.date || "—"
-                            )
-                        ).substring(
-                            0,
-                            10
-                        )}
-                    </td>
-
-                    <td>
-                        ${formatNumber(
-                            row.forecast
-                        )}
-                    </td>
-
-                </tr>
-            `;
+        const rows = data.data || [];
+        if (!rows.length) {
+            container.innerHTML = "<p>No matching series found.</p>";
+            return;
         }
-    );
-
-
-    html += `
-
-            </tbody>
-
-        </table>
-    `;
-
-
-    container.innerHTML =
-        html;
+        let html = `<p>${formatNumber(data.matches)} matching rows —
+                    showing first ${rows.length}.</p>
+                    <table><thead><tr><th>Series</th><th>Store</th>
+                    <th>Date</th><th>Forecast</th></tr></thead><tbody>`;
+        rows.forEach(row => {
+            html += `<tr>
+                <td>${escapeHTML(String(row.id ?? "—"))}</td>
+                <td>${escapeHTML(String(row.store_id ?? "—"))}</td>
+                <td>${escapeHTML(String(row.date ?? "—")).substring(0, 10)}</td>
+                <td>${formatNumber(row.forecast)}</td></tr>`;
+        });
+        container.innerHTML = html + "</tbody></table>";
+    } catch (error) {
+        console.error("Search error:", error);
+        container.innerHTML = "<p>Cannot connect to the server.</p>";
+    }
 }
 
-
 // ============================================================
-// EXPORT FORECAST
+// EXPORT  (streamed from the server, not built in the browser)
 // ============================================================
 
 function exportForecast() {
-
-    if (!forecastData.length) {
-
-        alert(
-            "No forecast data loaded."
-        );
-
-        return;
-    }
-
-
-    const headers =
-        Object.keys(
-            forecastData[0]
-        );
-
-
-    const rows = [
-        headers.join(",")
-    ];
-
-
-    forecastData.forEach(
-        row => {
-
-            rows.push(
-
-                headers
-                    .map(
-                        header => {
-
-                            const value =
-                                row[header] ??
-                                "";
-
-                            return `"${String(
-                                value
-                            ).replace(
-                                /"/g,
-                                '""'
-                            )}"`;
-                        }
-                    )
-                    .join(",")
-            );
-        }
-    );
-
-
-    const blob =
-        new Blob(
-            [
-                rows.join("\n")
-            ],
-            {
-                type:
-                    "text/csv;charset=utf-8;"
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(
-            blob
-        );
-
-
-    const link =
-        document.createElement(
-            "a"
-        );
-
-
-    link.href =
-        url;
-
-    link.download =
-        "m5_forecast.csv";
-
-
-    document.body.appendChild(
-        link
-    );
-
-    link.click();
-
-    document.body.removeChild(
-        link
-    );
-
-
-    URL.revokeObjectURL(
-        url
-    );
+    if (!token) return;
+    const url = `${API_URL}/export?${filterQuery()}`;
+    fetch(url, { headers: authHeaders() })
+        .then(r => {
+            if (!r.ok) throw new Error("Export failed");
+            return r.blob();
+        })
+        .then(blob => {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `m5_forecast_${currentMode()}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Could not export forecast.");
+        });
 }
 
-
 // ============================================================
-// FILTER EVENTS
-// ============================================================
-
-[
-    "state-filter",
-    "store-filter",
-    "category-filter",
-    "department-filter",
-    "item-filter"
-]
-.forEach(
-    id => {
-
-        const element =
-            document.getElementById(
-                id
-            );
-
-        if (element) {
-
-            element.addEventListener(
-                "change",
-                applyFilters
-            );
-        }
-    }
-);
-
-
-// ============================================================
-// MODE CHANGE
+// TABS
 // ============================================================
 
-const modeFilter =
-    document.getElementById(
-        "mode-filter"
-    );
-
-
-if (modeFilter) {
-
-    modeFilter.addEventListener(
-        "change",
-        async () => {
-
-            await loadForecast();
-
-            await loadSummary();
-
-        }
-    );
+function showTab(tabId, button) {
+    document.querySelectorAll(".tab-content")
+        .forEach(tab => tab.classList.remove("active-tab"));
+    const tab = document.getElementById(tabId);
+    if (tab) tab.classList.add("active-tab");
+    document.querySelectorAll(".nav-item")
+        .forEach(item => item.classList.remove("active"));
+    if (button) button.classList.add("active");
 }
 
-
 // ============================================================
-// ENTER KEY FOR LOGIN
-// ============================================================
-
-const passwordInput =
-    document.getElementById(
-        "password"
-    );
-
-
-if (passwordInput) {
-
-    passwordInput.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key === "Enter"
-            ) {
-
-                login();
-            }
-        }
-    );
-}
-
-
-// ============================================================
-// NUMBER FORMAT
+// HELPERS
 // ============================================================
 
 function formatNumber(value) {
-
-    if (
-        value === undefined ||
-        value === null ||
-        Number.isNaN(
-            Number(value)
-        )
-    ) {
-
+    if (value === undefined || value === null || Number.isNaN(Number(value))) {
         return "—";
     }
-
-
-    return Number(value)
-        .toLocaleString(
-            undefined,
-            {
-                maximumFractionDigits: 2
-            }
-        );
+    return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
-
-
-// ============================================================
-// GET ELEMENT VALUE
-// ============================================================
 
 function getValue(id) {
-
-    const element =
-        document.getElementById(
-            id
-        );
-
-    return element
-        ? element.value
-        : "";
+    const el = document.getElementById(id);
+    return el ? el.value : "";
 }
 
-
-// ============================================================
-// SET TEXT
-// ============================================================
-
-function setText(
-    id,
-    value
-) {
-
-    const element =
-        document.getElementById(
-            id
-        );
-
-    if (element) {
-
-        element.textContent =
-            value;
-    }
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
 }
-
-
-// ============================================================
-// HTML ESCAPE
-// ============================================================
 
 function escapeHTML(value) {
-
     return String(value)
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-
 // ============================================================
-// EXISTING SESSION
+// EVENTS
 // ============================================================
 
-async function checkExistingLogin() {
+document.addEventListener("DOMContentLoaded", () => {
+    ["state-filter", "store-filter", "category-filter",
+     "department-filter", "item-filter"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", applyFilters);
+    });
 
-    if (!token) {
+    const modeFilter = document.getElementById("mode-filter");
+    if (modeFilter) modeFilter.addEventListener("change", loadDashboard);
 
-        return;
+    const passwordInput = document.getElementById("password");
+    if (passwordInput) {
+        passwordInput.addEventListener("keydown", e => {
+            if (e.key === "Enter") login();
+        });
     }
 
-
-    try {
-
-        const response =
-            await fetch(
-                `${API_URL}/auth/me`,
-                {
-                    headers:
-                        authHeaders()
-                }
-            );
-
-
-        if (!response.ok) {
-
-            localStorage.removeItem(
-                "m5_token"
-            );
-
-            token = null;
-
-            return;
-        }
-
-
-        const data =
-            await response.json();
-
-
-        showDashboard(
-            data.username
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Session check error:",
-            error
-        );
+    const signupConfirm = document.getElementById("signup-confirm-password");
+    if (signupConfirm) {
+        signupConfirm.addEventListener("keydown", e => {
+            if (e.key === "Enter") register();
+        });
     }
-}
 
-
-// ============================================================
-// START APPLICATION
-// ============================================================
-
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-
-        checkExistingLogin();
-
+    const search = document.getElementById("series-search");
+    if (search) {
+        search.addEventListener("keydown", e => {
+            if (e.key === "Enter") searchSeries();
+        });
     }
-);
+
+    checkExistingLogin();
+});

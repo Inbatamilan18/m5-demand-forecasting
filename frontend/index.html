@@ -48,6 +48,9 @@
             Walmart Retail Demand Forecasting Dashboard
         </p>
 
+
+        <!-- ================= LOGIN ================= -->
+
         <input
             id="username"
             type="text"
@@ -68,6 +71,44 @@
         </button>
 
         <p id="login-message"></p>
+
+
+        <hr>
+
+
+        <!-- ================= SIGN UP ================= -->
+
+        <h2>
+            Create New Account
+        </h2>
+
+        <input
+            id="signup-username"
+            type="text"
+            placeholder="Choose a username"
+        >
+
+        <input
+            id="signup-password"
+            type="password"
+            placeholder="Create a password"
+        >
+
+        <input
+            id="signup-confirm-password"
+            type="password"
+            placeholder="Confirm password"
+        >
+
+        <button
+            onclick="register()"
+            class="primary-btn login-btn"
+        >
+            Sign Up
+        </button>
+
+        <p id="signup-message"></p>
+
 
     </div>
 
@@ -127,13 +168,6 @@
             onclick="showTab('hierarchy-tab', this)"
         >
             🏢 Hierarchy
-        </button>
-
-        <button
-            class="nav-item"
-            onclick="showTab('accuracy-tab', this)"
-        >
-            🎯 Accuracy
         </button>
 
         <button
@@ -702,134 +736,6 @@
                 id="hierarchy-table"
                 class="table-container"
             ></div>
-
-        </section>
-
-    </section>
-
-
-
-    <!-- =====================================================
-         ACCURACY TAB
-    ====================================================== -->
-
-    <section
-        id="accuracy-tab"
-        class="tab-content"
-    >
-
-        <div class="page-title">
-
-            <h2>
-                🎯 Model Accuracy
-            </h2>
-
-            <p>
-                Evaluate forecasting performance.
-            </p>
-
-        </div>
-
-
-        <div class="kpi-grid">
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    🎯
-                </div>
-
-                <div>
-
-                    <span>
-                        WRMSSE
-                    </span>
-
-                    <strong id="wrmsse">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    📐
-                </div>
-
-                <div>
-
-                    <span>
-                        RMSE
-                    </span>
-
-                    <strong id="rmse">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    📊
-                </div>
-
-                <div>
-
-                    <span>
-                        MAE
-                    </span>
-
-                    <strong id="mae">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-
-            <div class="kpi-card">
-
-                <div class="kpi-icon">
-                    📉
-                </div>
-
-                <div>
-
-                    <span>
-                        MAPE
-                    </span>
-
-                    <strong id="mape">
-                        —
-                    </strong>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <section class="dashboard-card">
-
-            <h2>
-                Model Evaluation
-            </h2>
-
-            <p>
-                The accuracy values above are loaded
-                directly from the backend evaluation
-                results.
-            </p>
 
         </section>
 

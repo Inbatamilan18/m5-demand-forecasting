@@ -1,16 +1,14 @@
-# Render.com Blueprint
-# M5 Retail Demand Forecasting - FastAPI Backend
-
 services:
   - type: web
-    name: m5-demand-forecasting-api
-
+    name: m5-demand-forecasting
     runtime: docker
-
     plan: free
-
+    region: singapore
     dockerfilePath: ./Dockerfile
-
     healthCheckPath: /health
-
     autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SEED_USERS
+        sync: false

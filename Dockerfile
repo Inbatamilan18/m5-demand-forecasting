@@ -1,71 +1,28 @@
 # ============================================================
-# M5 RETAIL DEMAND FORECASTING - FASTAPI BACKEND
+# M5 RETAIL DEMAND FORECASTING - FASTAPI BACKEND + FRONTEND
 # ============================================================
 
 FROM python:3.11-slim
 
-# ------------------------------------------------------------
-# Python environment
-# ------------------------------------------------------------
-
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PIP_NO_CACHE_DIR=1
-
-# ------------------------------------------------------------
-# System dependencies
-# ------------------------------------------------------------
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# ------------------------------------------------------------
-# Working directory
-# ------------------------------------------------------------
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# ------------------------------------------------------------
-# Install Python dependencies
-# ------------------------------------------------------------
+# Runtime deps only - no lightgbm / scikit-learn / streamlit.
+# Training happens on your laptop; the container just serves results.
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
-COPY requirements.txt .
+COPY backend/   ./backend/
+COPY frontend/  ./frontend/
+COPY web_data/  ./web_data/
 
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ------------------------------------------------------------
-# Copy FastAPI backend
-# ------------------------------------------------------------
-
-COPY backend/ ./backend/
-
-# ------------------------------------------------------------
-# Copy forecasting data
-# ------------------------------------------------------------
-
-COPY web_data/ ./web_data/
-
-# ------------------------------------------------------------
-# IMPORTANT:
-# users.db is NOT copied.
-#
-# FastAPI creates users.db automatically when the
-# application starts.
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
-# Render provides PORT
-# ------------------------------------------------------------
+# users.db is NOT copied; the app creates it at startup.
+# Set DB_PATH=/var/data/users.db with a Render disk to make it persist.
 
 ENV PORT=8000
-
 EXPOSE 8000
 
-# ------------------------------------------------------------
-# Start FastAPI
-# ------------------------------------------------------------
-
-CMD uvicorn backend.main:app \
-    --host 0.0.0.0 \
-    --port ${PORT}
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT} --workers 1
