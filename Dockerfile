@@ -23,7 +23,6 @@ RUN pip install --no-cache-dir -r requirements-web.txt
 COPY app_deploy.py ./app.py
 COPY src/ ./src/
 COPY web_data/ ./web_data/
-COPY users.db ./users.db
 
 # Cloud platforms inject $PORT; default to 8501 for local runs
 ENV PORT=8501
